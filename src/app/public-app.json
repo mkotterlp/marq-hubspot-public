@@ -3,6 +3,7 @@
   "uid": "marq-app",
   "description": "Marq is a HubSpot extension designed to streamline the creation of personalized sales proposals, presentations, and content. Seamlessly pull data from HubSpot CRM records into customizable templates, making your sales process faster",
   "allowedUrls": ["https://api.hubapi.com"],
+  "logo": "./Marq_Q_Logo",
   "advancedScopeSettingsEnabled": true,
   "auth": {
     "redirectUrls": ["http://localhost:3000/oauth-callback"],
@@ -85,7 +86,7 @@
     "conditionallyRequiredScopes": []
   },
   "support": {
-    "supportEmail": "support@example.com",
+    "supportEmail": "support@marq.com",
     "documentationUrl": "https://example.com/docs",
     "supportUrl": "https://example.com/support",
     "supportPhone": "+18005555555"
