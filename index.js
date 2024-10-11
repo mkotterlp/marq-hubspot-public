@@ -35,16 +35,21 @@ const CLIENT_SECRET = '54d198f2-8e06-4426-a36a-8878c3b130c7';
 let SCOPES = [
   'crm.objects.contacts.read',
   'crm.objects.contacts.write',
+  'crm.schemas.contacts.read',
   'crm.objects.companies.read',
   'crm.objects.companies.write',
+  'crm.schemas.companies.read',
   'crm.objects.deals.read',
   'crm.objects.deals.write',
+  'crm.schemas.deals.read',
   'crm.objects.quotes.read',
   'crm.objects.quotes.write',
+  'crm.schemas.quotes.read',
   'crm.objects.line_items.read',
   'crm.objects.line_items.write',
-  'crm.objects.tickets.read',
-  'crm.objects.tickets.write'
+  'crm.schemas.line_items.read',
+  'tickets',
+  'oauth'
 ];
 
 
