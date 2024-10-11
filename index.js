@@ -32,10 +32,55 @@ const CLIENT_SECRET = '54d198f2-8e06-4426-a36a-8878c3b130c7';
 
 // Scopes for this app will default to `crm.objects.contacts.read`
 // To request others, set the SCOPE environment variable instead
-let SCOPES = ['crm.objects.contacts.read'];
-if (process.env.SCOPE) {
-    SCOPES = (process.env.SCOPE.split(/ |, ?|%20/)).join(' ');
-}
+let SCOPES = [
+'crm.objects.users.write',
+'crm.objects.contacts.write',
+'crm.dealsplits.read_write',
+'actions',
+'crm.schemas.deals.write',
+'media_bridge.write',
+'crm.lists.read',
+'crm.objects.quotes.write',
+'crm.lists.write',
+'crm.objects.line_items.write',
+'content',
+'crm.schemas.companies.read',
+'files',
+'files.ui_hidden.read',
+'crm.objects.subscriptions.read',
+'crm.schemas.line_items.read',
+'crm.objects.invoices.read',
+'crm.objects.companies.read',
+'crm.objects.quotes.read',
+'crm.schemas.companies.write',
+'crm.objects.marketing_events.write',
+'crm.schemas.invoices.read',
+'hubdb',
+'crm.objects.owners.read',
+'crm.schemas.subscriptions.read',
+'crm.objects.deals.read',
+'crm.schemas.contacts.read',
+'crm.objects.goals.read',
+'crm.schemas.contacts.write',
+'crm.objects.contacts.read',
+'crm.schemas.quotes.read',
+'crm.objects.companies.write',
+'analytics.behavioral_events.send',
+'tickets',
+'crm.objects.users.read',
+'media_bridge.read',
+'marketing-email',
+'oauth',
+'crm.objects.deals.write',
+'crm.objects.line_items.read',
+'crm.schemas.deals.read',
+   'crm.objects.custom.write',
+      'crm.objects.custom.read'
+];
+
+// if (process.env.SCOPE) {
+//     SCOPES = (process.env.SCOPE.split(/ |, ?|%20/)).join(' ');
+// }
 
 // On successful install, users will be redirected to /oauth-callback
 const REDIRECT_URI = `http://localhost:${PORT}/oauth-callback`;
