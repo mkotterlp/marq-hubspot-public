@@ -2,7 +2,7 @@
   "name": "Marq",
   "uid": "marq-app",
   "description": "Marq is a HubSpot extension designed to streamline the creation of personalized sales proposals, presentations, and content. Seamlessly pull data from HubSpot CRM records into customizable templates, making your sales process faster",
-  "allowedUrls": ["https://api.hubapi.com"],
+  "allowedUrls": ["https://api.hubapi.com", "https://marqembed.fastgenapp.com"],
   "logo": "./Marq_Q_Logo.png",
   "advancedScopeSettingsEnabled": true,
   "auth": {
