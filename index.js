@@ -42,8 +42,11 @@ let SCOPES = [
   'crm.objects.quotes.read',
   'crm.objects.quotes.write',
   'crm.objects.line_items.read',
-  'crm.objects.line_items.write'
+  'crm.objects.line_items.write',
+  'crm.objects.tickets.read',
+  'crm.objects.tickets.write'
 ];
+
 
 
 // if (process.env.SCOPE) {
