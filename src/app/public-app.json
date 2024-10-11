@@ -6,7 +6,7 @@
   "logo": "./Marq_Q_Logo.png",
   "advancedScopeSettingsEnabled": true,
   "auth": {
-    "redirectUrls": ["http://localhost:3000/oauth-callback"],
+    "redirectUrls": ["http://localhost:3001/oauth-callback"],
     "requiredScopes": [
       "account-info.security.read",
       "crm.objects.users.write",
