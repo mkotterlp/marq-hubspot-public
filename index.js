@@ -32,31 +32,10 @@ const CLIENT_SECRET = '54d198f2-8e06-4426-a36a-8878c3b130c7';
 
 // Scopes for this app will default to `crm.objects.contacts.read`
 // To request others, set the SCOPE environment variable instead
-let SCOPES = [
-  'crm.objects.contacts.read',
-  'crm.objects.contacts.write',
-  'crm.schemas.contacts.read',
-  'crm.objects.companies.read',
-  'crm.objects.companies.write',
-  'crm.schemas.companies.read',
-  'crm.objects.deals.read',
-  'crm.objects.deals.write',
-  'crm.schemas.deals.read',
-  'crm.objects.quotes.read',
-  'crm.objects.quotes.write',
-  'crm.schemas.quotes.read',
-  'crm.objects.line_items.read',
-  'crm.objects.line_items.write',
-  'crm.schemas.line_items.read',
-  'tickets',
-  'oauth'
-];
-
-
-
-// if (process.env.SCOPE) {
-//     SCOPES = (process.env.SCOPE.split(/ |, ?|%20/)).join(' ');
-// }
+let SCOPES = ['crm.objects.contacts.read'];
+if (process.env.SCOPE) {
+    SCOPES = (process.env.SCOPE.split(/ |, ?|%20/)).join(' ');
+}
 
 // On successful install, users will be redirected to /oauth-callback
 const REDIRECT_URI = `http://localhost:${PORT}/oauth-callback`;
