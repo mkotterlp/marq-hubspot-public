@@ -8,11 +8,6 @@
   "auth": {
     "redirectUrls": ["http://localhost:3001/oauth-callback"],
     "requiredScopes": [
-        "content",
-        "files",
-        "hubdb",
-        "tickets",
-        "oauth",
         "crm.objects.contacts.read",
         "crm.objects.contacts.write",
         "crm.objects.companies.read",

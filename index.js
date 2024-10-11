@@ -33,11 +33,6 @@ const CLIENT_SECRET = '9f9f7b91-3c52-4b3d-82b7-bec26a8266ee';
 // Scopes for this app will default to `crm.objects.contacts.read`
 // To request others, set the SCOPE environment variable instead
 let SCOPES = [
-'content',
-'files',
-'hubdb',
-'tickets',
-'oauth',
 'crm.objects.contacts.read',
 'crm.objects.contacts.write',
 'crm.objects.companies.read',
