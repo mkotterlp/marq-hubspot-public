@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marq OAuth Redirect</title>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Extract parameters from the URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const authorizationCode = urlParams.get('code');
+            const stateParam = urlParams.get('state');
+
+            console.log('Authorization Code:', authorizationCode);
+            console.log('State Parameter:', stateParam);
+
+            if (authorizationCode && stateParam) {
+                try {
+                    // Decode and parse the state parameter to extract the origin and API key
+                    let expectedOrigin = null;
+                    let vfUrl = null;
+                    let apiKey = null;
+                    let clientId = null;
+                    let clientSecret = null;
+                    let redirectUri = null;
+                    try {
+                        const decodedState = atob(stateParam);
+                        const stateData = JSON.parse(decodedState);
+
+                        if (stateData.vfUrl) {
+                            vfUrl = stateData.vfUrl;
+                            expectedOrigin = new URL(vfUrl).origin;
+                            console.log('Decoded expected origin from state:', expectedOrigin);
+                        } else {
+                            throw new Error('Expected origin not found in state parameter.');
+                        }
+
+                        if (stateData.apiKey) {
+                            apiKey = stateData.apiKey;
+                            clientId = stateData.clientId;
+                            clientSecret = stateData.clientSecret;
+                            redirectUri = stateData.redirectUri;
+                            console.log('API Key found in state:', apiKey);
+                        }
+
+                    } catch (error) {
+                        throw new Error('Failed to decode or parse state parameter: ' + error.message);
+                    }
+
+                    if (apiKey) {
+                        // Use the external Fastgen endpoint if API key is present
+                        fetch('https://marqembed.fastgenapp.com/marq-ouath', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                code: authorizationCode,
+                                apiKey: apiKey
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            console.log('Response from Fastgen:', data);
+                            // Handle the response from Fastgen as needed
+                        })
+                        .catch(error => {
+                            console.error('Error during Fastgen API call:', error);
+                        });
+                    } else {
+                        // Execute only if API key is not present
+                        // Verify window.opener is available
+                        if (!window.opener) {
+                            throw new Error('Opener window is not accessible or does not exist.');
+                        }
+
+                        // Open the Visualforce page in a new tab with query parameters
+                        const vfUrlWithParams = `${vfUrl}?code=${encodeURIComponent(authorizationCode)}&state=${encodeURIComponent(stateParam)}`;
+                        window.open(vfUrlWithParams, '_self');
+
+                        console.log('Redirecting to VF page with expected origin:', expectedOrigin);
+
+                        // Send the authorization code to the Visualforce page
+                        window.opener.postMessage({
+                            type: "OAuthSuccess",
+                            authorizationCode: authorizationCode
+                        }, expectedOrigin);
+
+                        console.log('OAuth Success message posted.');
+                    }
+
+                } catch (error) {
+                    console.error('Error communicating with Visualforce page or Fastgen:', error);
+
+                    // Notify the parent window about the failure only if window.opener is used
+                    if (!apiKey && window.opener) {
+                        window.opener.postMessage({
+                            type: "OAuthFailure",
+                            error: "Error communicating with Visualforce page: " + error.message
+                        }, "*");
+                    } else {
+                        console.error('Opener window is not available.');
+                    }
+                }
+            } else {
+                console.error('Authorization code or state parameter is missing.');
+
+                // Notify the parent window about the missing authorization code only if window.opener is used
+                if (!apiKey && window.opener) {
+                    window.opener.postMessage({
+                        type: "OAuthFailure",
+                        error: "Authorization code or state parameter is missing"
+                    }, "*");
+                } else {
+                    console.error('Opener window is not available.');
+                }
+            }
+        });
+    </script>
+</head>
+<body>
+    <p>Processing authorization response...</p>
+</body>
+</html>
+
+
+
+
+
+Testing

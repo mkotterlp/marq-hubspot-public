@@ -1,0 +1,13 @@
+{
+  "name": "app-functions",
+  "version": "1.0.0",
+  "description": "Serverless functions for the HubSpot app",
+  "main": "uploadAttachmentToContactRecord.js",
+  "dependencies": {
+    "axios": "^0.21.1",
+    "@hubspot/api-client": "11.1.0"
+  },
+  "scripts": {},
+  "author": "",
+  "license": "ISC"
+}

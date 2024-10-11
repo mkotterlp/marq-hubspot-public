@@ -1,0 +1,25 @@
+{
+  "type": "crm-card",
+  "data": {
+    "title": "Hello Public App",
+    "uid": "hello-world-card",
+    "location": "crm.record.tab",
+    "module": {
+      "file": "ExampleCard.jsx"
+    },
+    "objectTypes": [
+      {
+        "name": "contacts"
+      },
+      {
+        "name": "companies"
+      },
+      {
+        "name": "deals"
+      },
+      {
+        "name": "tickets"
+      }
+    ]
+  }
+}

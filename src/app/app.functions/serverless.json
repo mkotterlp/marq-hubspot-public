@@ -1,0 +1,81 @@
+{
+  "appFunctions": {
+    "getApiKey": {
+      "file": "getApiKey.js"
+    },
+    "fetchLineItems": {
+      "file": "fetchLineItems.js"
+    },
+    "fetchAccountTable": {
+      "file": "fetchAccountTable.js"
+    },
+    "dataTableHandler": {
+      "file": "dataTableHandler.js"
+    },
+    "updateUserRefresh": {
+      "file": "updateUserRefresh.js"
+    },
+    "updateAccountRefresh": {
+      "file": "updateAccountRefresh.js"
+    },
+    "updateUserTable": {
+      "file": "updateUserTable.js"
+    },
+    "fetchTemplates": {
+      "file": "fetchTemplates.js"
+    },
+    "objectType": {
+      "file": "objectType.js"
+    },
+    "hubdbHelper": {
+      "file": "hubdbHelper.js"
+    },
+    "fetchProjects": {
+      "file": "fetchProjects.js"
+    },
+    "fetchProjectDetails": {
+      "file": "fetchProjectDetails.js"
+    },
+    "fetchobjecttypeid": {
+      "file": "fetchobjecttypeid.js"
+    },
+    "fetchStage": {
+      "file": "fetchStage.js"
+    },
+    "getObjectProperties": {
+      "file": "getObjectProperties.js"
+    },
+    "deleteRecord": {
+      "file": "deleteRecord.js"
+    },
+    "generateEmailContent": {
+      "file": "generateEmailContent.js"
+    },
+    "fetchJsonData": {
+      "file": "fetchJsonData.js"
+    },
+    "createProject": {
+      "file": "createProject.js"
+    },
+    "marqouathhandler": {
+      "file": "marqouathhandler.js"
+    },
+    "updateUserToken": {
+      "file": "updateUserToken.js"
+    },
+    "createDataset": {
+      "file": "createDataset.js"
+    },
+    "updateDataset": {
+      "file": "updateDataset.js"
+    },
+    "updateData3": {
+      "file": "updateData3.js"
+    }
+
+
+    
+  }
+}
+
+
