@@ -69,7 +69,6 @@ let SCOPES = [
 'tickets',
 'crm.objects.users.read',
 'media_bridge.read',
-'marketing-email',
 'oauth',
 'crm.objects.deals.write',
 'crm.objects.line_items.read',
