@@ -1,8 +1,8 @@
 {
   "type": "crm-card",
   "data": {
-    "title": "Hello Public App",
-    "uid": "hello-world-card",
+    "title": "Marq",
+    "uid": "marq-app",
     "location": "crm.record.tab",
     "module": {
       "file": "ExampleCard.jsx"
