@@ -39,8 +39,14 @@ let SCOPES = [
 'crm.objects.companies.write',
 'crm.objects.deals.read',
 'crm.objects.deals.write',
-'crm.objects.users.read',
-'crm.objects.owners.read'
+'crm.objects.custom.write',
+'crm.objects.custom.read',
+'crm.schemas.line_items.read',
+'settings.users.read',
+'crm.objects.owners.read',
+'files',
+'hubdb',
+'oauth',
 ];
 
 // let SCOPES = [
