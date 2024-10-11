@@ -42,24 +42,7 @@ let SCOPES = [
   'crm.objects.quotes.read',
   'crm.objects.quotes.write',
   'crm.objects.line_items.read',
-  'crm.objects.line_items.write',
-  'crm.objects.users.read',
-  'crm.objects.users.write',
-  'crm.schemas.contacts.read',
-  'crm.schemas.contacts.write',
-  'crm.schemas.companies.read',
-  'crm.schemas.companies.write',
-  'crm.schemas.deals.read',
-  'crm.schemas.deals.write',
-  'crm.schemas.quotes.read',
-  'crm.schemas.quotes.write',
-  'crm.schemas.line_items.read',
-  'crm.schemas.line_items.write',
-  'crm.objects.custom.read',
-  'crm.objects.custom.write',
-  'crm.schemas.custom.read',
-  'crm.schemas.custom.write',
-  'hubdb'
+  'crm.objects.line_items.write'
 ];
 
 
