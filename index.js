@@ -35,10 +35,7 @@ const CLIENT_SECRET = 'a0a531e3-fa33-4269-86a9-0d222fe4a556';
 let SCOPES = [
 'crm.objects.users.write',
 'crm.objects.contacts.write',
-'crm.dealsplits.read_write',
-'actions',
 'crm.schemas.deals.write',
-'media_bridge.write',
 'crm.lists.read',
 'crm.objects.quotes.write',
 'crm.lists.write',
@@ -46,7 +43,6 @@ let SCOPES = [
 'content',
 'crm.schemas.companies.read',
 'files',
-'files.ui_hidden.read',
 'crm.objects.subscriptions.read',
 'crm.schemas.line_items.read',
 'crm.objects.invoices.read',
