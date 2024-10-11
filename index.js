@@ -27,8 +27,8 @@ if (!process.env.CLIENT_ID || !process.env.CLIENT_SECRET) {
 // or set them as environment variables before running.
 // const CLIENT_ID = process.env.CLIENT_ID;
 // const CLIENT_SECRET = process.env.CLIENT_SECRET;
-const CLIENT_ID = '474b88e8-23b5-49b1-b52a-910cdacad93e';
-const CLIENT_SECRET = '54d198f2-8e06-4426-a36a-8878c3b130c7';
+const CLIENT_ID = '5e1b7361-0746-42eb-ab39-26219d53eafc';
+const CLIENT_SECRET = 'a0a531e3-fa33-4269-86a9-0d222fe4a556';
 
 // Scopes for this app will default to `crm.objects.contacts.read`
 // To request others, set the SCOPE environment variable instead
