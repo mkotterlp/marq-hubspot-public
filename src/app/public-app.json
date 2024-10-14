@@ -29,6 +29,7 @@
       "crm.objects.marketing_events.read",
       "forms-uploaded-files",
       "crm.objects.feedback_submissions.read",
+      "crm.objects.custom.write",
       "files",
       "conversations.read",
       "files.ui_hidden.read",
@@ -63,6 +64,7 @@
       "crm.schemas.contacts.write",
       "crm.objects.contacts.read",
       "crm.schemas.quotes.read",
+      "crm.schemas.custom.read",
       "crm.objects.companies.write",
       "transactional-email",
       "analytics.behavioral_events.send",
@@ -77,10 +79,8 @@
       "crm.objects.deals.write",
       "crm.objects.line_items.read",
       "crm.schemas.deals.read",
-      "sales-email-read",
       "crm.objects.custom.read",
-      "crm.objects.custom.write",
-      "crm.schemas.custom.read"
+      "sales-email-read"
     ],
     "optionalScopes": [
     ],
@@ -105,4 +105,3 @@
     "file": "./webhooks/webhooks.json"
   }
 }
- 
