@@ -220,18 +220,26 @@ const fetchObjectType = async (context) => {
             (!templateLink && currentRefreshToken)
           ) {
             try {
-              const fetchResult = await hubspot.fetch({
-                name: "fetchTemplates",
-                parameters: {
-                  userId: userId,
-                  marquserid: marquserid,
-                  refreshToken: currentRefreshToken,
-                },
+
+              const params = new URLSearchParams({
+                refresh_token: refreshToken,
+                marquserid: marquserid,
               });
+              
+              const fetchResult = await hubspot.fetch(
+                `https://marqembed.fastgenapp.com/get-templates4?${params.toString()}`,
+                {
+                  method: "GET"
+                }
+              );
+
 
               // Log the full response object
 
               if (fetchResult && fetchResult.response) {
+                console.log('fetchResult:', fetchResult);
+                console.log('fetchResult.response:', fetchResult.response);
+
                 const statusCode = fetchResult.response.statusCode;
 
                 if (statusCode === 200 && fetchResult.response.body) {
