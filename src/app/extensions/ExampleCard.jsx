@@ -142,14 +142,22 @@ const fetchObjectType = async (context) => {
           method: "POST",
           body: {
             objectTypeId: context.crm.objectTypeId,
-            userId: userId, // Include userId in the parameters
+            userId: userId, 
           },
         }
       );
 
       if (objectTypeResponse.ok) {
         const objectTypeResponseBody = await objectTypeResponse.json();
-        console.log("Object Type:", objectTypeResponseBody.objectType);
+        
+        // Accessing the objectType within the body -> Data -> body
+        const objectType = objectTypeResponseBody.Data?.body?.objectType;
+
+        if (objectType) {
+          console.log("Object Type:", objectType);
+        } else {
+          console.error("Object Type not found in response.");
+        }
       } else {
         console.error("Error fetching object type:", objectTypeResponse);
       }
@@ -160,6 +168,7 @@ const fetchObjectType = async (context) => {
     console.error("Error fetching object type:", error);
   }
 };
+
 
   const fetchPropertiesAndLoadConfig = async (objectType) => {
     try {
