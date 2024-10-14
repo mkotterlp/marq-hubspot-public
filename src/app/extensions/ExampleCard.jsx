@@ -125,36 +125,76 @@ const Extension = ({ context, actions, runServerless }) => {
     },
   ];
 
-  const fetchObjectType = async () => {
-    try {
-      const userId = context.user.id;
+// Utility function to build query string from an object of params
+const buildQueryString = (params) => {
+  return Object.keys(params)
+    .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
+    .join("&");
+};
 
-      const objectTypeResponse = await runServerless({
-        name: "objectType",
-        parameters: {
-          objectTypeId: context.crm.objectTypeId,
-          userId: userId, // Include userId in the parameters
-        },
-      });
 
-      if (
-        objectTypeResponse &&
-        objectTypeResponse.response &&
-        objectTypeResponse.response.body
-      ) {
-        const objectTypeResponseBody = JSON.parse(
-          objectTypeResponse.response.body
-        );
-        setObjectType(objectTypeResponseBody.objectType);
+const fetchObjectType = async (context) => {
+  try {
+    const params = {
+      objectTypeId: context.crm.objectTypeId,
+      userId: context.user.id
+    };
+
+    // Use the utility function to construct the query string
+    const queryString = buildQueryString(params);
+    const url = `https://marqembed.fastgenapp.com/get-object-type?${queryString}`;
+
+    // Fetch the data using the constructed URL
+    const response = await hubspot.fetch(url, {
+      method: 'GET',
+    });
+
+    if (response.ok) {
+      const responseBody = await response.json();
+      if (responseBody && responseBody.objectType) {
+        setObjectType(responseBody.objectType);
       } else {
         console.error(
           "Error: Response body is undefined or not structured as expected.",
-          objectTypeResponse
+          responseBody
         );
       }
-    } catch (error) {
-      console.error("Error fetching object type:", error);
+    } else {
+      console.error("Error: Failed to fetch object type", response);
     }
+  } catch (error) {
+    console.error("Error fetching object type:", error);
+  }
+    
+    // try {
+    //   const userId = context.user.id;
+
+    //   const objectTypeResponse = await runServerless({
+    //     name: "objectType",
+    //     parameters: {
+    //       objectTypeId: context.crm.objectTypeId,
+    //       userId: userId, // Include userId in the parameters
+    //     },
+    //   });
+
+    //   if (
+    //     objectTypeResponse &&
+    //     objectTypeResponse.response &&
+    //     objectTypeResponse.response.body
+    //   ) {
+    //     const objectTypeResponseBody = JSON.parse(
+    //       objectTypeResponse.response.body
+    //     );
+    //     setObjectType(objectTypeResponseBody.objectType);
+    //   } else {
+    //     console.error(
+    //       "Error: Response body is undefined or not structured as expected.",
+    //       objectTypeResponse
+    //     );
+    //   }
+    // } catch (error) {
+    //   console.error("Error fetching object type:", error);
+    // }
   };
 
   const fetchPropertiesAndLoadConfig = async (objectType) => {
