@@ -1,47 +1,37 @@
 import { useState, useEffect, useCallback, useRef } from "react"; 
 import {
-  Alert,
   LoadingButton,
-  RadioButton,
-  Icon,
   Flex,
   Box,
-  Heading,
   Image,
   Input,
-  Dropdown,
   Link,
   Button,
   ButtonRow,
   Table,
   Form,
-  TableHead,
-  TableHeader,
   TableCell,
   TableBody,
   TableRow,
   Text,
   Divider,
-  EmptyState,
   LoadingSpinner,
   hubspot,
 } from "@hubspot/ui-extensions";
 import {
-  CrmActionButton,
-  CrmActionLink,
-  CrmCardActions,
-  CrmAssociationTable,
+  CrmActionButton
 } from "@hubspot/ui-extensions/crm";
 
-hubspot.extend(({ context, actions, runServerlessFunction }) => (
-  <Extension
-    context={context}
-    actions={actions}
-    runServerless={runServerlessFunction}
-  />
-));
+hubspot.extend((extensionContext) => {
+  return (
+    <Extension 
+      context={extensionContext.context} 
+      actions={extensionContext.actions}
+    />
+  );
+});
 
-const Extension = ({ context, actions, runServerless }) => {
+const Extension = ({ context, actions }) => {
   const [iframeUrl, setIframeUrl] = useState("");
   const [marquserid, setMarquserid] = useState("");
   const [isPolling, setIsPolling] = useState(false);
@@ -125,77 +115,51 @@ const Extension = ({ context, actions, runServerless }) => {
     },
   ];
 
-// Utility function to build query string from an object of params
-const buildQueryString = (params) => {
-  return Object.keys(params)
-    .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
-    .join("&");
-};
+
+useEffect(() => {
+  if (context) {
+    console.log("Context:", context); 
+    fetchObjectType(context);  // Call fetchObjectType only when context is available
+  } else {
+    console.log("Context is not available yet.");
+  }
+}, [context]);
 
 
 const fetchObjectType = async (context) => {
   try {
-    const params = {
-      objectTypeId: context.crm.objectTypeId,
-      userId: context.user.id
-    };
+    if (!context) {
+      throw new Error("Context is undefined.");
+    }
 
-    // Use the utility function to construct the query string
-    const queryString = buildQueryString(params);
-    const url = `https://marqembed.fastgenapp.com/get-object-type?${queryString}`;
+    // Check if CRM data exists in the context
+    if (context.crm && context.crm.objectTypeId) {
+      const userId = context.user.id;
 
-    // Fetch the data using the constructed URL
-    const response = await hubspot.fetch(url, {
-      method: 'GET',
-    });
+      const objectTypeResponse = await hubspot.fetch(
+        "https://marqembed.fastgenapp.com/fetch-object",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            objectTypeId: context.crm.objectTypeId,
+            userId: userId, // Include userId in the parameters
+          }),
+        }
+      );
 
-    if (response.ok) {
-      const responseBody = await response.json();
-      if (responseBody && responseBody.objectType) {
-        setObjectType(responseBody.objectType);
+      if (objectTypeResponse.ok) {
+        const objectTypeResponseBody = await objectTypeResponse.json();
+        console.log("Object Type:", objectTypeResponseBody.objectType);
       } else {
-        console.error(
-          "Error: Response body is undefined or not structured as expected.",
-          responseBody
-        );
+        console.error("Error fetching object type:", objectTypeResponse);
       }
     } else {
-      console.error("Error: Failed to fetch object type", response);
+      throw new Error("CRM data or objectTypeId is missing in context.");
     }
   } catch (error) {
     console.error("Error fetching object type:", error);
   }
-    
-    // try {
-    //   const userId = context.user.id;
-
-    //   const objectTypeResponse = await runServerless({
-    //     name: "objectType",
-    //     parameters: {
-    //       objectTypeId: context.crm.objectTypeId,
-    //       userId: userId, // Include userId in the parameters
-    //     },
-    //   });
-
-    //   if (
-    //     objectTypeResponse &&
-    //     objectTypeResponse.response &&
-    //     objectTypeResponse.response.body
-    //   ) {
-    //     const objectTypeResponseBody = JSON.parse(
-    //       objectTypeResponse.response.body
-    //     );
-    //     setObjectType(objectTypeResponseBody.objectType);
-    //   } else {
-    //     console.error(
-    //       "Error: Response body is undefined or not structured as expected.",
-    //       objectTypeResponse
-    //     );
-    //   }
-    // } catch (error) {
-    //   console.error("Error fetching object type:", error);
-    // }
-  };
+};
 
   const fetchPropertiesAndLoadConfig = async (objectType) => {
     try {
@@ -212,7 +176,7 @@ const fetchObjectType = async (context) => {
 
       // Fetch user data from the 'marqouathhandler' serverless function
       try {
-        const createusertable = await runServerless({
+        const createusertable = await hubspot.fetch({
           name: "marqouathhandler",
           parameters: { userID: userid },
         });
@@ -247,7 +211,7 @@ const fetchObjectType = async (context) => {
             (!templateLink && currentRefreshToken)
           ) {
             try {
-              const fetchResult = await runServerless({
+              const fetchResult = await hubspot.fetch({
                 name: "fetchTemplates",
                 parameters: {
                   userId: userId,
@@ -312,7 +276,7 @@ const fetchObjectType = async (context) => {
 
               try {
                 // Call the serverless function to update the user table
-                const updateResult = await runServerless({
+                const updateResult = await hubspot.fetch({
                   name: "updateUserTable",
                   parameters: {
                     userId: userId,
@@ -389,7 +353,7 @@ const fetchObjectType = async (context) => {
       try {
         const userId = context.user.id;
 
-        const configDataResponse = await runServerless({
+        const configDataResponse = await hubspot.fetch({
           name: "hubdbHelper",
           parameters: {
             objectType: objectType,
@@ -427,7 +391,7 @@ const fetchObjectType = async (context) => {
             try {
               const userId = context.user.id;
 
-              const propertiesResponse = await runServerless({
+              const propertiesResponse = await hubspot.fetch({
                 name: "getObjectProperties",
                 parameters: {
                   objectId: context.crm.objectId,
@@ -490,7 +454,7 @@ const fetchObjectType = async (context) => {
             try {
               const userId = context.user.id;
 
-              const dynamicpropertiesResponse = await runServerless({
+              const dynamicpropertiesResponse = await hubspot.fetch({
                 name: "getObjectProperties",
                 parameters: {
                   objectId: context.crm.objectId,
@@ -566,7 +530,7 @@ const fetchObjectType = async (context) => {
               // Make your API call to fetch associated line items for the deal
               const userId = context.user.id;
 
-              const lineItemsResponse = await runServerless({
+              const lineItemsResponse = await hubspot.fetch({
                 name: "fetchLineItems",
                 parameters: { dealId: context.crm.objectId, userId: userId }, // Include userId in the parameters
               });
@@ -589,7 +553,7 @@ const fetchObjectType = async (context) => {
           if (templateLink) {
             console.log("Applying templates");
             try {
-              const templatesResponse = await runServerless({
+              const templatesResponse = await hubspot.fetch({
                 name: "fetchJsonData",
                 parameters: { templateLink },
               });
@@ -733,7 +697,7 @@ const fetchObjectType = async (context) => {
     try {
       const userId = context.user.id; // Retrieve userId from context
 
-      await runServerless({
+      await hubspot.fetch({
         name: "deleteRecord",
         parameters: {
           recordId: recordId,
@@ -790,7 +754,7 @@ const fetchObjectType = async (context) => {
       try {
         const userId = context.user.id;
 
-        const associatedProjectsResponse = await runServerless({
+        const associatedProjectsResponse = await hubspot.fetch({
           name: "fetchProjects",
           parameters: {
             fromObjectId: context.crm.objectId,
@@ -822,7 +786,7 @@ const fetchObjectType = async (context) => {
 
             const userId = context.user.id;
 
-            const projectDetailsResponse = await runServerless({
+            const projectDetailsResponse = await hubspot.fetch({
               name: "fetchProjectDetails",
               parameters: {
                 objectIds: Array.from(uniqueProjectIds),
@@ -887,7 +851,7 @@ const fetchObjectType = async (context) => {
         return [];
       }
     },
-    [context.crm.objectId, runServerless, actions]
+    [context.crm.objectId, hubspot.fetch, actions]
   );
 
   const editClick = async (projectId, fileId, encodedoptions) => {
@@ -907,7 +871,7 @@ const fetchObjectType = async (context) => {
       const userId = context.user.id;
       const contactId = context.crm.objectId;
 
-      const createaccounttable = await runServerless({
+      const createaccounttable = await hubspot.fetch({
         name: "fetchAccountTable",
         parameters: { objectType: objectType, userId: userId }, // Include userId in the parameters
       });
@@ -974,7 +938,7 @@ const fetchObjectType = async (context) => {
 
   const sendEmail = async (project) => {
     try {
-      const response = await runServerlessFunction({
+      const response = await hubspot.fetchFunction({
         name: "generateEmailContent",
         parameters: { project },
       });
@@ -1083,7 +1047,7 @@ const fetchObjectType = async (context) => {
 
   const setapi = async (userid, userEmail) => {
     try {
-      const apiResponse = await runServerless({
+      const apiResponse = await hubspot.fetch({
         name: "getApiKey",
       });
 
@@ -1139,7 +1103,7 @@ const fetchObjectType = async (context) => {
     try {
       const userId = context.user.id;
 
-      const updateAccountRefreshResponse = await runServerless({
+      const updateAccountRefreshResponse = await hubspot.fetch({
         name: "updateAccountRefresh",
         parameters: {
           refreshToken: currentRefreshToken,
@@ -1165,7 +1129,7 @@ const fetchObjectType = async (context) => {
     try {
       const userId = context.user.id; // Get the user ID
 
-      await runServerless({
+      await hubspot.fetch({
         name: "updateUserRefresh",
         parameters: {
           marquserId: marquserId,
@@ -1405,7 +1369,7 @@ const fetchObjectType = async (context) => {
 
         // Call update-data3 function
         console.log("Starting updateData3");
-        const updateDataResponse = await runServerless({
+        const updateDataResponse = await hubspot.fetch({
           name: "updateData3",
           parameters: {
             refresh_token: currentAccountRefreshToken,
@@ -1485,7 +1449,7 @@ const fetchObjectType = async (context) => {
     try {
       const userId = context.user.id;
 
-      const createusertable = await runServerless({
+      const createusertable = await hubspot.fetch({
         name: "marqouathhandler",
         parameters: { userId: userId },
       });
@@ -1506,7 +1470,7 @@ const fetchObjectType = async (context) => {
       let refreshTokenToUse = currentRefreshToken;
       let accountrefreshTokenToUse = currentAccountRefreshToken;
 
-      const createaccounttable = await runServerless({
+      const createaccounttable = await hubspot.fetch({
         name: "fetchAccountTable",
         parameters: { objectType: objectType, userId: userId }, // Include userId in the parameters
       });
@@ -1547,7 +1511,7 @@ const fetchObjectType = async (context) => {
 
       if (currentRefreshToken) {
         try {
-          const createusertable = await runServerless({
+          const createusertable = await hubspot.fetch({
             name: "marqouathhandler",
             parameters: { userId: userId },
           });
@@ -1585,7 +1549,7 @@ const fetchObjectType = async (context) => {
       // 4. Create the project using the user refresh token
 
       try {
-        const createProjectResponse = await runServerless({
+        const createProjectResponse = await hubspot.fetch({
           name: "createProject",
           parameters: {
             refresh_token: refreshTokenToUse,
@@ -1775,7 +1739,7 @@ const fetchObjectType = async (context) => {
     try {
       // console.log("Polling for refresh token...");
       const userId = context.user.id;
-      const createusertable = await runServerless({
+      const createusertable = await hubspot.fetch({
         name: "marqouathhandler",
         parameters: { userId: userId },
       });
@@ -1831,7 +1795,7 @@ const fetchObjectType = async (context) => {
   const pollForAccountRefreshToken = async () => {
     try {
       // Fetch account data using the serverless function
-      const createaccounttable = await runServerless({
+      const createaccounttable = await hubspot.fetch({
         name: "fetchAccountTable",
         parameters: { objectType: objectType, userId: userId }, // Include userId in the parameters
       });
@@ -1927,9 +1891,6 @@ const fetchObjectType = async (context) => {
     };
   }, [shouldPollForProjects]);
 
-  useEffect(() => {
-    fetchObjectType();
-  }, [context.crm.objectTypeId, runServerless]);
 
   useEffect(() => {
     // console.log("Filtered Templates Updated:", filteredTemplates);
@@ -2030,7 +1991,7 @@ const fetchObjectType = async (context) => {
         setAPIkey(apiKey);
 
         // Step 1: Fetch Marq user data to retrieve the refresh token
-        const createusertable = await runServerless({
+        const createusertable = await hubspot.fetch({
           name: "marqouathhandler",
           parameters: { userId: userid },
         });
@@ -2075,7 +2036,7 @@ const fetchObjectType = async (context) => {
   const fetchMarqAccountData = async () => {
     try {
       const userId = context.user.id;
-      const createaccounttable = await runServerless({
+      const createaccounttable = await hubspot.fetch({
         name: "dataTableHandler",
         parameters: {
           objectType: objectType,
@@ -2117,9 +2078,6 @@ const fetchObjectType = async (context) => {
     }
   };
 
-  useEffect(() => {
-    fetchObjectType();
-  }, [context.crm.objectTypeId, runServerless]);
 
   useEffect(() => {
     initialize();
@@ -2326,7 +2284,7 @@ const fetchObjectType = async (context) => {
       const clientsecret = process.env.CLIENT_SECRET;
   
       // Check if the dataset already exists
-      const checkDatasetResponse = await runServerless({
+      const checkDatasetResponse = await hubspot.fetch({
         name: "fetchAccountTable",
         parameters: { objectType: objectType, userId: userId }, // Include userId in the parameters
       });
@@ -2344,7 +2302,7 @@ const fetchObjectType = async (context) => {
         return; // Dataset already exists, exit
       } else {
         // Call the createDataset serverless function
-        const createDatasetResponse = await runServerless({
+        const createDatasetResponse = await hubspot.fetch({
           name: "createDataset",
           parameters: {
             refresh_token: refreshToken,
@@ -2367,7 +2325,7 @@ const fetchObjectType = async (context) => {
           collectionid = datasetResult.collectionId;
   
           // Update account refresh token with the new refresh token after success
-          await runServerless({
+          await hubspot.fetch({
             name: "updateAccountRefresh",
             parameters: {
               refreshToken: new_refresh_token || refreshToken, // Use new refresh token if available
@@ -2375,7 +2333,7 @@ const fetchObjectType = async (context) => {
             },
           });
   
-          await runServerless({
+          await hubspot.fetch({
             name: "updateDataset",
             parameters: {
               objectType: objectType,
@@ -2390,7 +2348,7 @@ const fetchObjectType = async (context) => {
             createDatasetResponse?.response?.body
           );
   
-          await runServerless({
+          await hubspot.fetch({
             name: "updateAccountRefresh",
             parameters: {
               refreshToken: "", // Set the refresh token to blank on error
@@ -2405,7 +2363,7 @@ const fetchObjectType = async (context) => {
       console.error("Error in createOrUpdateDataset:", error.message);
   
       // Handle general errors and set refresh token to blank
-      await runServerless({
+      await hubspot.fetch({
         name: "updateAccountRefresh",
         parameters: {
           refreshToken: "", // Set refresh token to blank on error

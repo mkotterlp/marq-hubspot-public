@@ -5,7 +5,7 @@
   "allowedUrls": [
     "https://api.hubapi.com",
     "https://marqembed.fastgenapp.com",
-    "https://marqembed.fastgenapp.com/get-object-type"
+    "https://marqembed.fastgenapp.com/fetch-object"
   ],
   "logo": "./Marq_Q_Logo.png",
   "advancedScopeSettingsEnabled": true,
