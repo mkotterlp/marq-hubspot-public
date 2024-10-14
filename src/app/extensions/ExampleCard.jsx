@@ -185,7 +185,9 @@ const fetchObjectType = async (context) => {
 
       // Fetch user data from the 'marqouathhandler' serverless function
       try {
-        const createusertable = await hubspot.fetch("https://marqembed.fastgenapp.com/marq-ouath-handler", {
+        const createusertable = await hubspot.fetch(
+          "https://marqembed.fastgenapp.com/marq-ouath-handler", 
+        {
           method: "POST",
           body: {
             userId: userId,
@@ -297,14 +299,17 @@ const fetchObjectType = async (context) => {
 
               try {
                 // Call the serverless function to update the user table
-                const updateResult = await hubspot.fetch({
-                  name: "updateUserTable",
-                  parameters: {
+                const updateResult = await hubspot.fetch(
+                  "https://marqembed.fastgenapp.com/update-user-table", 
+                {
+                  method: "POST",
+                  body: {
                     userId: userId,
                     refreshToken: currentRefreshToken,
-                    templatesJsonUrl: templateLink,
+                    templatesJsonUrl: templateLink
                   },
                 });
+                
 
                 // Parse the response
                 if (updateResult.statusCode === 200) {
