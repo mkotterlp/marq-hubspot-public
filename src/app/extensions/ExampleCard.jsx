@@ -140,10 +140,10 @@ const fetchObjectType = async (context) => {
         "https://marqembed.fastgenapp.com/fetch-object",
         {
           method: "POST",
-          body: JSON.stringify({
+          body: {
             objectTypeId: context.crm.objectTypeId,
             userId: userId, // Include userId in the parameters
-          }),
+          },
         }
       );
 
