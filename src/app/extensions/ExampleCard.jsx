@@ -379,13 +379,20 @@ const fetchObjectType = async (context) => {
       try {
         const userId = context.user.id;
 
-        const configDataResponse = await hubspot.fetch({
-          name: "hubdbHelper",
-          parameters: {
-            objectType: objectType,
-            userId: userId, // Include userId in the parameters
-          },
-        });
+        const configDataResponse = await hubspot.fetch(
+          "https://marqembed.fastgenapp.com/hubdb-helper",
+          {
+            method: "POST",
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              objectType: objectType,
+              userId: userId,
+            }),
+          }
+        );
+        
 
         if (configDataResponse?.response?.body) {
           configData =

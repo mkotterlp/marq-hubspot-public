@@ -7,7 +7,8 @@
     "https://marqembed.fastgenapp.com",
     "https://marqembed.fastgenapp.com/fetch-object",
     "https://marqembed.fastgenapp.com/marq-ouath-handler",
-    "https://marqembed.fastgenapp.com/update-user-table"
+    "https://marqembed.fastgenapp.com/update-user-table",
+    "https://marqembed.fastgenapp.com/hubdb-helper"
   ],
   "logo": "./Marq_Q_Logo.png",
   "advancedScopeSettingsEnabled": true,
