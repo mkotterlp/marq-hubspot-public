@@ -185,9 +185,13 @@ const fetchObjectType = async (context) => {
 
       // Fetch user data from the 'marqouathhandler' serverless function
       try {
-        const createusertable = await hubspot.fetch({
-          name: "marqouathhandler",
-          parameters: { userID: userid },
+        const createusertable = await hubspot.fetch("https://marqembed.fastgenapp.com/marq-ouath-handler", {
+          method: "POST",
+          body: {
+            userId: userId,
+            marquserid: 'someMarqUserId',  // Dynamically fetch marquserid
+            refreshtoken: 'someRefreshToken',  // Dynamically fetch refresh token
+          }
         });
 
         if (createusertable?.response?.body) {
