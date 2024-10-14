@@ -77,12 +77,12 @@
       "crm.objects.deals.write",
       "crm.objects.line_items.read",
       "crm.schemas.deals.read",
-      "sales-email-read"
-    ],
-    "optionalScopes": [
+      "sales-email-read",
       "crm.objects.custom.read",
       "crm.objects.custom.write",
       "crm.schemas.custom.read"
+    ],
+    "optionalScopes": [
     ],
     "conditionallyRequiredScopes": []
   },
