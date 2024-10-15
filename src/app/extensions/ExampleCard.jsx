@@ -801,15 +801,16 @@ const fetchObjectType = async (context) => {
       }
 
       try {
-        const userId = context.user.id;
 
-        const associatedProjectsResponse = await hubspot.fetch({
-          name: "fetchProjects",
-          parameters: {
-            fromObjectId: context.crm.objectId,
-            fromObjectType: objectType,
-            userId: userId, // Include userId in the parameters
+        const associatedProjectsResponse = await fetch("https://marqembed.fastgenapp.com/fetchprojects", {
+          method: "POST", // Assuming it's a POST request
+          headers: {
+            "Content-Type": "application/json",
           },
+          body: JSON.stringify({
+            objectId: objectId,
+            objectType: objectType,
+          }),
         });
 
         if (
