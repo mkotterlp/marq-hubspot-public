@@ -600,10 +600,13 @@ const fetchObjectType = async (context) => {
           if (templateLink) {
             console.log("Applying templates");
             try {
-              const templatesResponse = await hubspot.fetch({
-                name: "fetchJsonData",
-                parameters: { templateLink },
+              const templatesResponse = await hubspot.fetch("https://marqembed.fastgenapp.com/fetchjsondata", {
+                method: "POST",
+                body: JSON.stringify({
+                  templateLink: templateLink, // Ensure templateLink is passed correctly
+                }),
               });
+              
 
               if (templatesResponse?.response?.body) {
                 const data = JSON.parse(templatesResponse.response.body);
