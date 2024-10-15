@@ -492,14 +492,17 @@ const fetchObjectType = async (context) => {
             try {
               const userId = context.user.id;
 
-              const dynamicpropertiesResponse = await hubspot.fetch({
-                name: "getObjectProperties",
-                parameters: {
+              const dynamicpropertiesResponse = await fetch("https://marqembed.fastgenapp.com/get-object-properties", {
+                method: "POST", // Ensure the request method matches the expected method for the endpoint
+                headers: {
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
                   objectId: context.crm.objectId,
                   objectType: objectType,
                   properties: fields,
-                  userId: userId, // Include userId in the parameters
-                },
+                  userId: userId // Include userId in the parameters
+                })
               });
 
               if (dynamicpropertiesResponse?.response?.body) {
