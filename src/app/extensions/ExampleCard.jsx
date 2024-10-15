@@ -571,9 +571,15 @@ const fetchObjectType = async (context) => {
               // Make your API call to fetch associated line items for the deal
               const userId = context.user.id;
 
-              const lineItemsResponse = await hubspot.fetch({
-                name: "fetchLineItems",
-                parameters: { dealId: context.crm.objectId, userId: userId }, // Include userId in the parameters
+              const lineItemsResponse = await fetch('https://marqembed.fastgenapp.com/fetch-line-items', {
+                method: 'POST', // Assuming POST based on the nature of the operation, adjust if needed
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  dealId: context.crm.objectId, // Include dealId in the body
+                  userId: userId // Include userId in the body as well
+                }),
               });
 
               // Parse the response and return the line items

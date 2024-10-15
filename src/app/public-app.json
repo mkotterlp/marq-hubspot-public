@@ -9,14 +9,15 @@
     "https://marqembed.fastgenapp.com/marq-ouath-handler",
     "https://marqembed.fastgenapp.com/update-user-table",
     "https://marqembed.fastgenapp.com/hubdb-helper",
-    "https://marqembed.fastgenapp.com/get-object-properties"
+    "https://marqembed.fastgenapp.com/get-object-properties",
+    "https://marqembed.fastgenapp.com/fetch-line-items"
   ],
   "logo": "./Marq_Q_Logo.png",
   "advancedScopeSettingsEnabled": true,
   "auth": {
     "redirectUrls": ["http://localhost:3001/oauth-callback"],
     "requiredScopes": [
-"account-info.security.read",
+      "account-info.security.read",
       "crm.objects.users.write",
       "crm.objects.contacts.write",
       "e-commerce",
