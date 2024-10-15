@@ -801,9 +801,9 @@ const fetchObjectType = async (context) => {
       }
 
       try {
-
+        // First API call to fetch associated projects
         const associatedProjectsResponse = await fetch("https://marqembed.fastgenapp.com/fetchprojects", {
-          method: "POST", // Assuming it's a POST request
+          method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
@@ -812,53 +812,38 @@ const fetchObjectType = async (context) => {
             objectType: objectType,
           }),
         });
-
-        if (
-          associatedProjectsResponse &&
-          associatedProjectsResponse.response &&
-          associatedProjectsResponse.response.body
-        ) {
-          const projectsData = JSON.parse(
-            associatedProjectsResponse.response.body
-          );
-          // console.log("Fetched project data:", projectsData);
-
-          if (
-            projectsData &&
-            projectsData.results &&
-            projectsData.results.length > 0
-          ) {
+      
+        // Check if the first fetch was successful and parse the response
+        if (associatedProjectsResponse.ok) {
+          const projectsData = await associatedProjectsResponse.json();
+      
+          if (projectsData?.results?.length > 0) {
+            // Collect unique project IDs
             const uniqueProjectIds = new Set(
               projectsData.results.flatMap((p) =>
                 p.to ? p.to.map((proj) => proj.id) : []
               )
             );
-
-            const userId = context.user.id;
-
-            const projectDetailsResponse = await hubspot.fetch({
-              name: "fetchProjectDetails",
-              parameters: {
-                objectIds: Array.from(uniqueProjectIds),
-                userId: userId,
-              }, // Include userId in the parameters
+      
+            // Second API call to fetch detailed project data
+            const projectDetailsResponse = await fetch("https://marqembed.fastgenapp.com/fetchprojectdetails", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                objectIds: Array.from(uniqueProjectIds), // Convert Set to Array if needed
+              }),
             });
-
-            if (
-              projectDetailsResponse &&
-              projectDetailsResponse.response &&
-              projectDetailsResponse.response.body
-            ) {
-              const projectDetails = JSON.parse(
-                projectDetailsResponse.response.body
-              );
-
+      
+            // Check if the second fetch was successful and parse the response
+            if (projectDetailsResponse.ok) {
+              const projectDetails = await projectDetailsResponse.json();
+      
               const uniqueDetailedProjects = new Map();
               projectsData.results.forEach((project) => {
                 project.to.forEach((p) => {
-                  const detail = projectDetails.find(
-                    (d) => d.objectId === p.id
-                  );
+                  const detail = projectDetails.find((d) => d.objectId === p.id);
                   if (detail) {
                     uniqueDetailedProjects.set(p.id, { ...p, ...detail });
                   } else {
@@ -866,32 +851,34 @@ const fetchObjectType = async (context) => {
                   }
                 });
               });
-
-              const detailedProjects = Array.from(
-                uniqueDetailedProjects.values()
-              );
+      
+              const detailedProjects = Array.from(uniqueDetailedProjects.values());
               detailedProjects.sort(
                 (a, b) =>
-                  new Date(b.hs_lastmodifieddate) -
-                  new Date(a.hs_lastmodifieddate)
+                  new Date(b.hs_lastmodifieddate) - new Date(a.hs_lastmodifieddate)
               );
-
+      
               // Update state
               setProjects(detailedProjects);
-              const totalPages = Math.ceil(
-                detailedProjects.length / RECORDS_PER_PAGE
-              );
+              const totalPages = Math.ceil(detailedProjects.length / RECORDS_PER_PAGE);
               setTotalPages(totalPages);
               setDataFetched(true);
-
+      
               // Return the detailed projects
               return detailedProjects;
+            } else {
+              console.error("Failed to fetch project details:", projectDetailsResponse.statusText);
+              throw new Error("Failed to fetch project details");
             }
           }
+        } else {
+          console.error("Failed to fetch associated projects:", associatedProjectsResponse.statusText);
+          throw new Error("Failed to fetch associated projects");
         }
+      
         return [];
       } catch (error) {
-        console.error("Failed to fetch associated projects:", error);
+        console.error("Error during fetch:", error);
         setDataFetched(true);
         actions.addAlert({
           title: "API Error",
@@ -900,6 +887,7 @@ const fetchObjectType = async (context) => {
         });
         return [];
       }
+      
     },
     [context.crm.objectId, hubspot.fetch, actions]
   );
