@@ -909,9 +909,14 @@ const fetchObjectType = async (context) => {
       const userId = context.user.id;
       const contactId = context.crm.objectId;
 
-      const createaccounttable = await hubspot.fetch({
-        name: "fetchAccountTable",
-        parameters: { objectType: objectType, userId: userId }, // Include userId in the parameters
+      const createaccounttable = await fetch("https://marqembed.fastgenapp.com/fetchaccounttable", {
+        method: "POST", // Assuming it's a POST request
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          objectType: objectType, // Pass objectType as a parameter
+        }),
       });
 
       if (!createaccounttable?.response?.body) {

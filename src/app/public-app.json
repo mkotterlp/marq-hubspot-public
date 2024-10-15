@@ -14,7 +14,8 @@
     "https://marqembed.fastgenapp.com/fetchjsondata",
     "https://marqembed.fastgenapp.com/deleterecord",
     "https://marqembed.fastgenapp.com/fetchprojects",
-    "https://marqembed.fastgenapp.com/fetchprojectdetails"
+    "https://marqembed.fastgenapp.com/fetchprojectdetails",
+    "https://marqembed.fastgenapp.com/fetchaccounttable"
   ],
   "logo": "./Marq_Q_Logo.png",
   "advancedScopeSettingsEnabled": true,
