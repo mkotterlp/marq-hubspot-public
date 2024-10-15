@@ -11,7 +11,8 @@
     "https://marqembed.fastgenapp.com/hubdb-helper",
     "https://marqembed.fastgenapp.com/get-object-properties",
     "https://marqembed.fastgenapp.com/fetch-line-items",
-    "https://marqembed.fastgenapp.com/fetchjsondata"
+    "https://marqembed.fastgenapp.com/fetchjsondata",
+    "https://marqembed.fastgenapp.com/deleterecord"
   ],
   "logo": "./Marq_Q_Logo.png",
   "advancedScopeSettingsEnabled": true,

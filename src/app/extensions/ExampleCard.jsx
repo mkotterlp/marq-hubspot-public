@@ -745,16 +745,15 @@ const fetchObjectType = async (context) => {
 
   const deleteRecord = async (recordId, objectType) => {
     try {
-      const userId = context.user.id; // Retrieve userId from context
 
-      await hubspot.fetch({
-        name: "deleteRecord",
-        parameters: {
+      await hubspot.fetch("https://marqembed.fastgenapp.com/deleterecord", {
+        method: "POST",
+        body: JSON.stringify({
           recordId: recordId,
           objectType: objectType,
-          userId: userId,
-        }, // Include userId in the parameters
+        }), // Include additional parameters if needed
       });
+
 
       // Remove the deleted record from the projects state
       setProjects((prevProjects) =>
