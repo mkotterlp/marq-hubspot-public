@@ -48,7 +48,7 @@ const Extension = ({ context, actions }) => {
   const [lineitemProperties, setLineitemProperties] = useState({});
   const [isIframeOpen, setIframeOpen] = useState(false);
   const [title, setTitle] = useState("Relevant Content");
-
+  const [authurl, setauth] = useState(""); 
   const [stageName, setStage] = useState("");
   const [propertiesToWatch, setpropertiesToWatch] = useState([]);
   const [initialFilteredTemplates, setInitialFilteredTemplates] = useState([]);
@@ -86,6 +86,8 @@ const Extension = ({ context, actions }) => {
 
   let objectId = "";
   let objectType = "";
+  let userid = "";
+  let userEmail = "";
   let marquserinitialized = false;
   let marqaccountinitialized = false;
   let hubId = "";
@@ -114,7 +116,18 @@ const Extension = ({ context, actions }) => {
     if (!hasInitialized.current && objectType) {
         hasInitialized.current = true;
 
-
+        const authorizationUrl = await handleConnectToMarq(
+          userid,
+          userEmail,
+          "user"
+        ); // Pass the API key, userid, and userEmail
+        setauth(authorizationUrl);
+        const accountauthorizationUrl = await handleConnectToMarq(
+          userid,
+          userEmail,
+          "data"
+        );
+        setAccountAuthorizationUrl(accountauthorizationUrl);
 
         try {
 
@@ -178,6 +191,8 @@ useEffect(() => {
       await fetchObjectType(context);
       objectId = context.crm.objectId;
       hubId = context.portal.id;
+      userid = context.user.id;
+      userEmail = context.user.email;
       initialize();
     };
 
