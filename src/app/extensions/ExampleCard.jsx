@@ -1282,17 +1282,11 @@ const fetchObjectType = async (context) => {
 
         console.log("updatedProperties", updatedProperties);
 
-        const clientid = "wfcWQOnE4lEpKqjjML2IEHsxUqClm6JCij6QEXGa";
-        const clientsecret =
-          "YiO9bZG7k1SY-TImMZQUsEmR8mISUdww2a1nBuAIWDC3PQIOgQ9Q44xM16x2tGd_cAQGtrtGx4e7sKJ0NFVX";
-
         // Call update-data3 function
         console.log("Starting updateData3");
         const updateDataResponse = await hubspot.fetch({
           name: "updateData3",
           parameters: {
-            clientid: clientid,
-            clientsecret: clientsecret,
             collectionId: collectionid,
             properties: updatedProperties,
             schema: updatedSchema,
@@ -1345,24 +1339,15 @@ const fetchObjectType = async (context) => {
     try {
       const userId = context.user.id;
 
-      const createusertable = await hubspot.fetch({
-        name: "marqouathhandler",
-        parameters: { userId: userId },
-      });
-      const responseBody = JSON.parse(createusertable.response.body);
-      const userData = responseBody?.row?.values || {};
-      marquserinitialized = userData?.marquserinitialized || null;
-
-      if (
-        !marquserinitialized
-      ) {
-        setShowTemplates(false);
-        return;
-      }
-
-      const createaccounttable = await hubspot.fetch({
-        name: "fetchAccountTable",
-        parameters: { objectType: objectType, userId: userId }, // Include userId in the parameters
+      const createaccounttable = await fetch("https://marqembed.fastgenapp.com/fetch-accounttable", {
+        method: "POST", // Assuming it's a POST request
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body:{
+          userId: userId,
+          objectType: objectType, // Pass objectType as a parameter
+        },
       });
 
       if (!createaccounttable?.response?.body) {
@@ -1393,32 +1378,6 @@ const fetchObjectType = async (context) => {
         return;
       }
 
-      if (marquserinitialized) {
-        try {
-          const createusertable = await hubspot.fetch({
-            name: "marqouathhandler",
-            parameters: { userId: userId },
-          });
-          const responseBody = JSON.parse(createusertable.response.body);
-          const userData = responseBody?.row?.values || {};
-
-          if (
-            !marquserinitialized
-          ) {
-            setShowTemplates(false);
-            return;
-          }
-        } catch (error) {
-          console.error("Error while fetching user:", error);
-          return;
-        }
-      }
-
-      // const clientid = "wfcWQOnE4lEpKqjjML2IEHsxUqClm6JCij6QEXGa";
-      // const clientsecret =
-      //   "YiO9bZG7k1SY-TImMZQUsEmR8mISUdww2a1nBuAIWDC3PQIOgQ9Q44xM16x2tGd_cAQGtrtGx4e7sKJ0NFVX";
-      const clientid = process.env.CLIENT_ID;
-      const clientsecret = process.env.CLIENT_SECRET;
       const marqaccountid = marqAccountId;
       const marquserId = marquserid;
       const recordid = context.crm?.objectId?.toString() || "";
@@ -1432,8 +1391,6 @@ const fetchObjectType = async (context) => {
         const createProjectResponse = await hubspot.fetch({
           name: "createProject",
           parameters: {
-            clientid: clientid,
-            clientsecret: clientsecret,
             marquserId: marquserId,
             recordid: recordid,
             templateid: templateid,
@@ -2054,9 +2011,9 @@ const fetchObjectType = async (context) => {
 
   function getAuthorizationUrl(metadataType, userid, userEmail) {
     try {
-      const clientId = "ewn_nCMA1Hr6I0mNLtu4irzVzt29cWn4eqHL2ZnN";
-      const clientSecret =
-        "LPzHZo2GTtzWYPGL-lu_GxpxGCL_7RDDumN0rAmM_WxiFEhFglAE8MM0EnoDHKXJbJ0k1abBdfOqdZjyhx-Q";
+
+      const marqclientid = process.env.MARQ_CLIENT_ID;
+      const marqclientsecret = process.env.MARQ_CLIENT_SECRET;
       const redirectUri = "https://info.marq.com/crm-oauth-hubspot2";
 
       const encodedRedirectUri = encodeURIComponent(redirectUri);
@@ -2065,8 +2022,6 @@ const fetchObjectType = async (context) => {
       const stateMap = {
         hubid: hubid,
         metadataType: metadataType,
-        clientId: clientId,
-        clientSecret: clientSecret,
         redirectUri: encodedRedirectUri,
         userid: userid, // Include the userId here
         email: userEmail, // Include the userEmail here
@@ -2094,8 +2049,8 @@ const fetchObjectType = async (context) => {
       authorizationUrl =
         `${authorizationURLBase}` +
         `?response_type=code` +
-        `&client_id=${clientId}` +
-        `&client_secret=${clientSecret}` +
+        `&client_id=${marqclientid}` +
+        `&client_secret=${marqclientsecret}` +
         `&scope=${encodedScopes}` +
         `&redirect_uri=${encodedRedirectUri}` +
         `&state=${stateParam}`;
@@ -2112,9 +2067,6 @@ const fetchObjectType = async (context) => {
     const userId = context.user.id; // Get the user ID
   
     try {
-      const clientid = process.env.CLIENT_ID;
-      const clientsecret = process.env.CLIENT_SECRET;
-  
       // Check if the dataset already exists
       const checkDatasetResponse = await hubspot.fetch({
         name: "fetchAccountTable",
@@ -2137,9 +2089,7 @@ const fetchObjectType = async (context) => {
         const createDatasetResponse = await hubspot.fetch({
           name: "createDataset",
           parameters: {
-            clientid: clientid,
             marqAccountId: marqAccountId,
-            clientsecret: clientsecret,
             objectName: objectType,
             schema: schema.map((item) => ({
               ...item,
@@ -2153,16 +2103,18 @@ const fetchObjectType = async (context) => {
           const datasetResult = JSON.parse(createDatasetResponse.response.body);
           datasetid = datasetResult.dataSourceId;
           collectionid = datasetResult.collectionId;
-  
-          await hubspot.fetch({
-            name: "updateDataset",
-            parameters: {
-              objectType: objectType,
-              datasetid: datasetid,
-              collectionid: collectionid,
-              userId: userId, // Include userId
-            },
-          });
+
+          await hubspot.fetch(
+            "https://marqembed.fastgenapp.com/update-dataset",
+            {
+              method: "POST",
+              body: {
+                objectType: objectType,
+                datasetId: datasetid,
+                collectionId: collectionid,
+                userId: userId,
+                    }
+            },);
         } else {
           console.error(
             `Failed to create dataset for ${objectType}:`,
