@@ -114,10 +114,10 @@ const Extension = ({ context, actions }) => {
         hasInitialized.current = true;
 
         // Fetch properties and associated projects for the objectType
-        console.log("Fetching properties and loading config...");
-        fetchPropertiesAndLoadConfig(objectType);
-        console.log("Fetching associated projects and details...");
-        fetchAssociatedProjectsAndDetails(objectType);
+        // console.log("Fetching properties and loading config...");
+        // fetchPropertiesAndLoadConfig(objectType);
+        // console.log("Fetching associated projects and details...");
+        // fetchAssociatedProjectsAndDetails(objectType);
 
         try {
 
@@ -125,45 +125,33 @@ const Extension = ({ context, actions }) => {
             "https://marqembed.fastgenapp.com/createusertable", 
             {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    // Your request body data here
-                })
+                body: {
+                }
             }
         );
         
-        console.log("Received response from the user table API.");
-        
-        // Check if the response is okay
         if (createusertable.ok) {
-            // Read the response as JSON
-            const responseData = await createusertable.json(); // Or use .text() if the response is plain text
-            console.log("Response JSON:", responseData);
+            // Parse the response body as JSON
+            const createusertableResponseBody = await createusertable.json();
+            console.log("Response Body:", createusertableResponseBody);
+
+            // Take actions based on the value of marquserinitialized
+    if (marquserinitialized === 1) {
+      console.log("User is initialized. Showing templates...");
+      setShowTemplates(true);  // Trigger to show templates
+      await fetchMarqAccountData();  // Fetch account data if needed
+  } else if (marquserinitialized === 0) {
+      console.log("User is not initialized. Hiding templates...");
+      setShowTemplates(false);  // Hide templates or take other actions
+  } else {
+      console.log("Unexpected value for marquserinitialized:", marquserinitialized);
+  }
+        
         } else {
-            console.error("Error:", createusertable.status, createusertable.statusText);
+            // Log the status and status text for error debugging
+            console.error(`Error fetching user table: ${createusertable.status} - ${createusertable.statusText}`);
         }
         
-            
-            if (createusertable?.response?.body) {
-                const userData = JSON.parse(createusertable.response.body)?.row?.values || {};
-                marquserinitialized = userData.marquserinitialized || null;
-
-                console.log(`Marq User Initialized: ${marquserinitialized}`);
-
-                if (marquserinitialized) {
-                    console.log("User is initialized. Showing templates...");
-                    setShowTemplates(true); // Use setShowTemplates to trigger the display of templates
-                    await fetchMarqAccountData();
-                    console.log("Fetched Marq Account Data");
-                } else {
-                    console.log("User is not initialized. Hiding templates...");
-                    setShowTemplates(false); // Explicitly hide templates
-                }
-            } else {
-                console.error("Failed to create user table. No response body.");
-            }
         } catch (error) {
             console.error("Error in fetching user data:", error);
         }
