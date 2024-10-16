@@ -17,9 +17,8 @@
     "https://marqembed.fastgenapp.com/fetch-projectdetails",
     "https://marqembed.fastgenapp.com/fetch-accounttable",
     "https://marqembed.fastgenapp.com/update-dataset",
-    "https://marqembed.fastgenapp.com/datatablehandler",
-    "https://marqembed.fastgenapp.com/fetchprojects"
-  ],
+    "https://marqembed.fastgenapp.com/datatablehandler"
+    ],
   "logo": "./Marq_Q_Logo.png",
   "advancedScopeSettingsEnabled": true,
   "auth": {
