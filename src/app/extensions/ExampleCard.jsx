@@ -36,10 +36,20 @@ const Extension = ({ context, actions }) => {
   const [marquserid, setMarquserid] = useState("");
   const [isPolling, setIsPolling] = useState(false);
   const [isAccountPolling, setAccountIsPolling] = useState(false);
+  const [isAccountTokenClicked, setIsAccountTokenClicked] = useState(false);
+  const [isRefreshTokenClicked, setIsRefreshTokenClicked] = useState(false);
   const [loadingTemplateId, setLoadingTemplateId] = useState(null);
-  const [ShowMarqAccountButton, setShowMarqAccountButton] = useState(false);
+  const [isConnectToMarq, setIsConnectToMarq] = useState(false); // New state to track connection flow
+  const [isConnectedToMarq, setIsConnectedToMarq] = useState(false); // Set to true when user connects to Marq
+  const [showAccountTokenButton, setShowAccountTokenButton] = useState(false);
   const [accountoauthUrl, setAccountAuthorizationUrl] = useState("");
+  const [loadingaccounttoken, setloadingaccountrefreshtoken] = useState(false);
   const [showTemplates, setShowTemplates] = useState(true);
+  const [apiKey, setAPIkey] = useState("");
+  const [accessToken, setAccessToken] = useState(null);
+  const [authurl, setauth] = useState(""); //setauthConnectToMarq
+  const [authurlConnectToMarq, setauthConnectToMarq] = useState(""); //setauthConnectToMarq
+  const [authurlAccountToken, setauthAccountToken] = useState(""); //setauthAccountToken
   const [templates, setTemplates] = useState([]);
   const [allTemplates, setAllTemplates] = useState([]);
   const [fulltemplatelist, setfullTemplates] = useState([]);
@@ -84,13 +94,12 @@ const Extension = ({ context, actions }) => {
   const pollingTimerRef = useRef(null);
   const hasSyncedOnceRef = useRef(false);
 
-  let marquserinitialized = false;
-  let marqaccountinitialized = false;
-  let hubId = "";
   let paginatedTemplates = [];
   let propertiesBody = {};
   let configData = {};
   let templateLink;
+  let currentRefreshToken = "";
+  let currentAccountRefreshToken = "";
   let marqAccountId = "";
   let collectionid = "";
   let datasetid = "";
@@ -111,8 +120,6 @@ useEffect(() => {
   if (context) {
     console.log("Context:", context); 
     fetchObjectType(context);  // Call fetchObjectType only when context is available
-    hubId = context.portal.id;
-    console.log("Hubid:", hubId); 
   } else {
     console.log("Context is not available yet.");
   }
@@ -179,12 +186,14 @@ const fetchObjectType = async (context) => {
       // Fetch user data from the 'marqouathhandler' serverless function
       try {
         const createusertable = await hubspot.fetch(
-          "https://marqembed.fastgenapp.com/marq-ouath-handler", 
+          "https://marqembed.fastgenapp.com/marqouathhandler", 
         {
           method: "POST",
           body: {
-            userId: userId
-                }
+            userId: userId,
+            marquserid: 'someMarqUserId',  // Dynamically fetch marquserid
+            refreshtoken: 'someRefreshToken',  // Dynamically fetch refresh token
+          }
         });
 
         if (createusertable?.response?.body) {
@@ -195,10 +204,11 @@ const fetchObjectType = async (context) => {
           const marquserid = userData.marqUserID;
           // const marquserid = userData.marqUserID;
 
-          marquserinitialized = userData.marquserinitialized;
+          currentRefreshToken = userData.refreshToken;
 
+          // setRefreshToken(currentRefreshToken)
           // Validate required values before proceeding with further operations
-          if (!marquserinitialized || !marquserid) {
+          if (!currentRefreshToken || !marquserid) {
             setShowTemplates(false);
             setIsLoading(false);
             return;
@@ -212,12 +222,13 @@ const fetchObjectType = async (context) => {
 
           // Fetch templates if template link is missing
           if (
-            (timeDifference > twentyFourHoursInMs && marquserinitialized) ||
-            (!templateLink && marquserinitialized)
+            (timeDifference > twentyFourHoursInMs && currentRefreshToken) ||
+            (!templateLink && currentRefreshToken)
           ) {
             try {
 
               const params = new URLSearchParams({
+                refresh_token: refreshToken,
                 marquserid: marquserid,
               });
               
@@ -243,15 +254,18 @@ const fetchObjectType = async (context) => {
 
                     // Check if the required data is present
                     if (
-                      fetchedData.templatesjsonurl
+                      fetchedData.templatesjsonurl &&
+                      fetchedData.newRefreshToken
                     ) {
                       templateLink = fetchedData.templatesjsonurl;
+                      currentRefreshToken = fetchedData.newRefreshToken;
                     } else {
                       console.error(
                         "Error: Missing expected data in response body.",
                         fetchedData
                       );
                       templateLink = "";
+                      currentRefreshToken = "";
                     }
                   } catch (jsonError) {
                     console.error(
@@ -260,6 +274,7 @@ const fetchObjectType = async (context) => {
                       fetchResult.response.body
                     );
                     templateLink = "";
+                    currentRefreshToken = "";
                   }
                 } else {
                   // Handle non-200 status codes
@@ -270,6 +285,7 @@ const fetchObjectType = async (context) => {
                     fetchResult.response.body
                   );
                   templateLink = "";
+                  currentRefreshToken = "";
                 }
               } else {
                 // Handle missing response
@@ -278,16 +294,18 @@ const fetchObjectType = async (context) => {
                   fetchResult
                 );
                 templateLink = "";
+                currentRefreshToken = "";
               }
 
               try {
                 // Call the serverless function to update the user table
                 const updateResult = await hubspot.fetch(
-                  "https://marqembed.fastgenapp.com/update-user-table", 
+                  "https://marqembed.fastgenapp.com/update-usertable", 
                 {
                   method: "POST",
                   body: {
                     userId: userId,
+                    refreshToken: currentRefreshToken,
                     templatesJsonUrl: templateLink
                   },
                 });
@@ -296,7 +314,7 @@ const fetchObjectType = async (context) => {
                 // Parse the response
                 if (updateResult.statusCode === 200) {
                   setResponseMessage(
-                    "User data updated successfully!"
+                    "User data and refresh token updated successfully!"
                   );
                 } else if (updateResult.statusCode === 400) {
                   console.error(
@@ -407,7 +425,7 @@ const fetchObjectType = async (context) => {
               const userId = context.user.id;
 
               const propertiesResponse = await fetch(
-                "https://marqembed.fastgenapp.com/get-object-properties", 
+                "https://marqembed.fastgenapp.com/fetch-objectproperties", 
               {
                 method: "POST", // Ensure you use the correct HTTP method, assuming POST
                 headers: {
@@ -474,7 +492,7 @@ const fetchObjectType = async (context) => {
             try {
               const userId = context.user.id;
 
-              const dynamicpropertiesResponse = await fetch("https://marqembed.fastgenapp.com/get-object-properties", {
+              const dynamicpropertiesResponse = await fetch("https://marqembed.fastgenapp.com/fetch-objectproperties", {
                 method: "POST", // Ensure the request method matches the expected method for the endpoint
                 headers: {
                   "Content-Type": "application/json"
@@ -553,7 +571,7 @@ const fetchObjectType = async (context) => {
               // Make your API call to fetch associated line items for the deal
               const userId = context.user.id;
 
-              const lineItemsResponse = await fetch('https://marqembed.fastgenapp.com/fetch-line-items', {
+              const lineItemsResponse = await fetch('https://marqembed.fastgenapp.com/fetch-lineitems', {
                 method: 'POST', // Assuming POST based on the nature of the operation, adjust if needed
                 headers: {
                   'Content-Type': 'application/json',
@@ -578,11 +596,10 @@ const fetchObjectType = async (context) => {
             console.error("Error fetching line items:", error);
           }
 
-          // Fetch templates from 'fetchJsonData'
           if (templateLink) {
             console.log("Applying templates");
             try {
-              const templatesResponse = await hubspot.fetch("https://marqembed.fastgenapp.com/fetchjsondata", {
+              const templatesResponse = await hubspot.fetch("https://marqembed.fastgenapp.com/fetch-jsondata", {
                 method: "POST",
                 body: JSON.stringify({
                   templateLink: templateLink, // Ensure templateLink is passed correctly
@@ -650,7 +667,7 @@ const fetchObjectType = async (context) => {
           } else {
             console.error("Error: Missing template link to fetch templates.");
 
-            if (marquserinitialized) {
+            if (currentRefreshToken) {
               setShowTemplates(true);
               setIsLoading(false);
             } else {
@@ -728,7 +745,7 @@ const fetchObjectType = async (context) => {
   const deleteRecord = async (recordId, objectType) => {
     try {
 
-      await hubspot.fetch("https://marqembed.fastgenapp.com/deleterecord", {
+      await hubspot.fetch("https://marqembed.fastgenapp.com/delete-record", {
         method: "POST",
         body: JSON.stringify({
           recordId: recordId,
@@ -784,7 +801,7 @@ const fetchObjectType = async (context) => {
 
       try {
         // First API call to fetch associated projects
-        const associatedProjectsResponse = await fetch("https://marqembed.fastgenapp.com/fetchprojects", {
+        const associatedProjectsResponse = await fetch("https://marqembed.fastgenapp.com/fetch-projects", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -808,7 +825,7 @@ const fetchObjectType = async (context) => {
             );
       
             // Second API call to fetch detailed project data
-            const projectDetailsResponse = await fetch("https://marqembed.fastgenapp.com/fetchprojectdetails", {
+            const projectDetailsResponse = await fetch("https://marqembed.fastgenapp.com/fetch-projectdetails", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -891,7 +908,7 @@ const fetchObjectType = async (context) => {
       const userId = context.user.id;
       const contactId = context.crm.objectId;
 
-      const createaccounttable = await fetch("https://marqembed.fastgenapp.com/fetchaccounttable", {
+      const createaccounttable = await fetch("https://marqembed.fastgenapp.com/fetch-accounttable", {
         method: "POST", // Assuming it's a POST request
         headers: {
           "Content-Type": "application/json",
@@ -921,7 +938,8 @@ const fetchObjectType = async (context) => {
 
       // console.log('accountData:', accountData);
 
-      marqaccountinitialized = accountData?.marqaccountinitialized || null;
+      // Extract the refresh token
+      currentAccountRefreshToken = accountData?.refreshToken || null;
       marqAccountId = accountData?.accountId || null;
       datasetid = matchedData?.datasetid || null;
       collectionid = matchedData?.collectionid || null;
@@ -931,10 +949,16 @@ const fetchObjectType = async (context) => {
         return;
       }
 
+      if (currentAccountRefreshToken) {
+        // console.log("Account refresh token:", currentAccountRefreshToken);
+        // tokenSource = 'account';
+      } else {
+        // console.log("No account refresh token found.");
+      }
 
-      await updateData();
+      await updateData(currentAccountRefreshToken);
 
-      let editorinnerurl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${encodedoptions}&creatorid=${userId}&contactid=${contactId}&hubid=${hubid}&objecttype=${objectType}&fileid=${fileId}`;
+      let editorinnerurl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${encodedoptions}&creatorid=${userId}&contactid=${contactId}&apikey=${apiKey}&objecttype=${objectType}&fileid=${fileId}`;
       const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(editorinnerurl)}`;
 
       editoriframeSrc =
@@ -954,26 +978,27 @@ const fetchObjectType = async (context) => {
     }
   };
 
-  const sendEmail = async (project) => {
-    try {
-      const response = await hubspot.fetchFunction({
-        name: "generateEmailContent",
-        parameters: { project },
-      });
+  // This is not being used
+  // const sendEmail = async (project) => {
+  //   try {
+  //     const response = await hubspot.fetchFunction({
+  //       name: "generateEmailContent",
+  //       parameters: { project },
+  //     });
 
-      if (response && response.emailContent) {
-        const emailContent = response.emailContent;
-        // Open the email composition window with the generated content
-        actions.openEmailComposeWindow({
-          to: project.contactEmail,
-          subject: `Details for project ${project.name}`,
-          body: emailContent,
-        });
-      }
-    } catch (error) {
-      console.error("Failed to generate email content:", error);
-    }
-  };
+  //     if (response && response.emailContent) {
+  //       const emailContent = response.emailContent;
+  //       // Open the email composition window with the generated content
+  //       actions.openEmailComposeWindow({
+  //         to: project.contactEmail,
+  //         subject: `Details for project ${project.name}`,
+  //         body: emailContent,
+  //       });
+  //     }
+  //   } catch (error) {
+  //     console.error("Failed to generate email content:", error);
+  //   }
+  // };
 
   const extractFiltersFromProperties = (
     fieldsArray,
@@ -1063,12 +1088,116 @@ const fetchObjectType = async (context) => {
     }
   };
 
+  // =========================
+  // Blake did not do this one
+  // =========================
+  const setapi = async (userid, userEmail) => {
+    try {
+      const apiResponse = await hubspot.fetch({
+        name: "getApiKey",
+      });
 
-  const updateData = async () => {
+      if (apiResponse && apiResponse.response && apiResponse.response.body) {
+        const body = JSON.parse(apiResponse.response.body);
+        if (body && body.key) {
+          const apiKey = body.key;
+          setAPIkey(apiKey);
+          //  console.log("API Key loaded:", apiKey);
+          const authorizationUrl = await handleConnectToMarq(
+            apiKey,
+            userid,
+            userEmail,
+            "user"
+          ); // Pass the API key, userid, and userEmail
+          setauth(authorizationUrl);
+          const accountauthorizationUrl = await handleConnectToMarq(
+            apiKey,
+            userid,
+            userEmail,
+            "data"
+          );
+          setAccountAuthorizationUrl(accountauthorizationUrl);
+          return apiKey; // Return the API key
+        } else {
+          console.error("No API key found in response.");
+          actions.addAlert({
+            title: "Error",
+            variant: "error",
+            message: "Failed to retrieve API key.",
+          });
+        }
+      } else {
+        console.error("API response was invalid or missing.");
+        actions.addAlert({
+          title: "Error",
+          variant: "error",
+          message: "Invalid API response.",
+        });
+      }
+    } catch (error) {
+      console.error("Error retrieving API key:", error);
+      actions.addAlert({
+        title: "Error",
+        variant: "error",
+        message: "Failed to retrieve API key.",
+      });
+    }
+    return null; // Return null if the API key was not retrieved
+  };
+
+  const updateAccountRefreshToken = async (currentRefreshToken) => {
+    try {
+
+      const updateAccountRefreshResponse = await hubspot.fetch(
+        "https://marqembed.fastgenapp.com/update-accountrefresh",
+        {
+          method: "POST",
+          body: {
+            refreshToken: currentRefreshToken,
+          }
+        },)
+
+      
+      
+
+      if (updateAccountRefreshResponse?.response?.statusCode === 200) {
+        // console.log('Account refresh token updated successfully in marq_account_data table');
+      } else {
+        console.error(
+          "Failed to update account refresh token:",
+          updateAccountRefreshResponse?.response?.body
+        );
+      }
+    } catch (error) {
+      console.error("Error updating account refresh token:", error);
+    }
+  };
+
+  const updateUserRefreshToken = async (marquserId, currentRefreshToken) => {
+    try {
+
+      await hubspot.fetch(
+        "https://marqembed.fastgenapp.com/update-userrefresh",
+        {
+          method: "POST",
+          body: {
+            marquserId: marquserId,
+            newrefreshtoken: currentRefreshToken,
+          },
+        });
+      
+
+      // console.log("User refresh token updated:", updateUserRefreshResponse);
+    } catch (error) {
+      console.error("Error occurred while updating user refresh token:", error);
+    }
+  };
+
+  const updateData = async (currentAccountRefreshToken) => {
     console.log("Starting updateData...");
     console.log("dynamicProperties before merge:", dynamicProperties);
 
-    if (marqaccountinitialized) {
+    if (currentAccountRefreshToken) {
       try {
         const properties = {};
 
@@ -1282,15 +1411,22 @@ const fetchObjectType = async (context) => {
 
         console.log("updatedProperties", updatedProperties);
 
-        const clientid = "wfcWQOnE4lEpKqjjML2IEHsxUqClm6JCij6QEXGa";
-        const clientsecret =
-          "YiO9bZG7k1SY-TImMZQUsEmR8mISUdww2a1nBuAIWDC3PQIOgQ9Q44xM16x2tGd_cAQGtrtGx4e7sKJ0NFVX";
+        // const clientid = "wfcWQOnE4lEpKqjjML2IEHsxUqClm6JCij6QEXGa";
+        // const clientsecret =
+        //   "YiO9bZG7k1SY-TImMZQUsEmR8mISUdww2a1nBuAIWDC3PQIOgQ9Q44xM16x2tGd_cAQGtrtGx4e7sKJ0NFVX";
+        const clientsecret = process.env.CLIENT_ID;
+        const clientid = process.env.CLIENT_SECRET;
 
         // Call update-data3 function
+
+        // ==============================================
+        // Fastgen table. Blake did not do anything here
+        // ==============================================
         console.log("Starting updateData3");
         const updateDataResponse = await hubspot.fetch({
           name: "updateData3",
           parameters: {
+            refresh_token: currentAccountRefreshToken,
             clientid: clientid,
             clientsecret: clientsecret,
             collectionId: collectionid,
@@ -1317,14 +1453,36 @@ const fetchObjectType = async (context) => {
               responseBody = {};
             }
           }
+
+          // Extract the new refresh token from the parsed response
+          const newAccountRefreshToken = responseBody?.new_refresh_token;
+
+          if (newAccountRefreshToken) {
+            // Call updateAccountRefreshToken to update the token in your system
+            await updateAccountRefreshToken(newAccountRefreshToken);
+          } else {
+            setIsAccountTokenClicked(false);
+            setShowAccountTokenButton(true);
+          }
         } else {
           console.error(
             "Failed to update data before project creation",
             updateDataResponse?.response?.body
           );
+
+          // If an error occurred, set the refresh token to blank
+          await updateAccountRefreshToken("");
+          setIsAccountTokenClicked(false);
+          setShowAccountTokenButton(true);
         }
       } catch (error) {
         console.error("Error during update-data3 execution:", error);
+
+        // On error, set the refresh token to blank
+        await updateAccountRefreshToken("");
+        setIsAccountTokenClicked(false);
+        setShowAccountTokenButton(true);
+        console.log("Refresh token set to blank due to error");
       }
     }
   };
@@ -1345,24 +1503,41 @@ const fetchObjectType = async (context) => {
     try {
       const userId = context.user.id;
 
-      const createusertable = await hubspot.fetch({
-        name: "marqouathhandler",
-        parameters: { userId: userId },
+      const createusertable = await hubspot.fetch(
+        "https://marqembed.fastgenapp.com/marqouathhandler", 
+      {
+        method: "POST",
+        body: {
+          userId: userId,
+          marquserid: 'someMarqUserId',  // Dynamically fetch marquserid
+          refreshtoken: 'someRefreshToken',  // Dynamically fetch refresh token
+        }
       });
       const responseBody = JSON.parse(createusertable.response.body);
       const userData = responseBody?.row?.values || {};
-      marquserinitialized = userData?.marquserinitialized || null;
+      currentRefreshToken = userData?.refreshToken || null;
 
       if (
-        !marquserinitialized
+        !currentRefreshToken ||
+        currentRefreshToken === "null" ||
+        currentRefreshToken === ""
       ) {
         setShowTemplates(false);
         return;
       }
 
-      const createaccounttable = await hubspot.fetch({
-        name: "fetchAccountTable",
-        parameters: { objectType: objectType, userId: userId }, // Include userId in the parameters
+      let tokenSource = "user"; // Default to user token
+      let refreshTokenToUse = currentRefreshToken;
+      let accountrefreshTokenToUse = currentAccountRefreshToken;
+
+      const createaccounttable = await fetch("https://marqembed.fastgenapp.com/fetch-accounttable", {
+        method: "POST", // Assuming it's a POST request
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          objectType: objectType, // Pass objectType as a parameter
+        }),
       });
 
       if (!createaccounttable?.response?.body) {
@@ -1383,7 +1558,8 @@ const fetchObjectType = async (context) => {
       const accountData = accountTableResponseBody?.dataRow?.values || {};
       const matchedData = accountTableResponseBody?.objectTypeRow?.values || {};
 
-      marquserinitialized = accountData?.marquserinitialized || null;
+      // Extract the refresh token
+      currentAccountRefreshToken = accountData?.refreshToken || null;
       marqAccountId = accountData?.accountId || null;
       datasetid = matchedData?.datasetid || null;
       collectionid = matchedData?.collectionid || null;
@@ -1393,23 +1569,37 @@ const fetchObjectType = async (context) => {
         return;
       }
 
-      if (marquserinitialized) {
+      if (currentAccountRefreshToken) {
+        // tokenSource = 'account';
+      } else {
+      }
+
+      if (currentRefreshToken) {
         try {
-          const createusertable = await hubspot.fetch({
-            name: "marqouathhandler",
-            parameters: { userId: userId },
+          const createusertable = await hubspot.fetch(
+            "https://marqembed.fastgenapp.com/marqouathhandler", 
+          {
+            method: "POST",
+            body: {
+              userId: userId,
+              marquserid: 'someMarqUserId',  // Dynamically fetch marquserid
+              refreshtoken: 'someRefreshToken',  // Dynamically fetch refresh token
+            }
           });
           const responseBody = JSON.parse(createusertable.response.body);
           const userData = responseBody?.row?.values || {};
+          refreshTokenToUse = userData?.refreshToken || null;
 
           if (
-            !marquserinitialized
+            !refreshTokenToUse ||
+            refreshTokenToUse === "null" ||
+            refreshTokenToUse === ""
           ) {
             setShowTemplates(false);
             return;
           }
         } catch (error) {
-          console.error("Error while fetching user:", error);
+          console.error("Error while fetching user refresh token:", error);
           return;
         }
       }
@@ -1425,13 +1615,18 @@ const fetchObjectType = async (context) => {
       const templateid = template?.id || "";
       const templatetitle = template?.title || "";
 
-      await updateData();
+      await updateData(currentAccountRefreshToken);
 
-
+      // 4. Create the project using the user refresh token
       try {
+
+        // ==============================================
+        // Fastgen table. Blake did not do anything here
+        // ==============================================
         const createProjectResponse = await hubspot.fetch({
           name: "createProject",
           parameters: {
+            refresh_token: refreshTokenToUse,
             clientid: clientid,
             clientsecret: clientsecret,
             marquserId: marquserId,
@@ -1484,12 +1679,18 @@ const fetchObjectType = async (context) => {
 
             const contactId = context.crm.objectId;
             const userId = context.user.id;
-            const returnUrl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${encodedOptions}&creatorid=${userId}&contactid=${contactId}&hubid=${hubid}&objecttype=${objectType}&dealstage=${stageName}&templateid=${template.id}`;
+            const returnUrl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${encodedOptions}&creatorid=${userId}&contactid=${contactId}&apikey=${apiKey}&objecttype=${objectType}&dealstage=${stageName}&templateid=${template.id}`;
             const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(returnUrl)}`;
 
             iframeSrc =
               "https://info.marq.com/marqembed?iframeUrl=" +
               encodeURIComponent(baseInnerUrl);
+
+            // Update refresh token after project creation
+            const newRefreshToken = projectData.new_refresh_token || ""; // Set to "" if not found
+
+            // Update the corresponding refresh token
+            await updateUserRefreshToken(marquserId, newRefreshToken);
           } catch (parseError) {
             console.error(
               "Error parsing project creation response:",
@@ -1499,6 +1700,7 @@ const fetchObjectType = async (context) => {
               "Raw response body:",
               createProjectResponse.response.body
             );
+            await updateUserRefreshToken(marquserId, ""); // Clear refresh token on failure
             iframeFallback(template.id); // Fallback in case of error
             return;
           }
@@ -1508,6 +1710,7 @@ const fetchObjectType = async (context) => {
             createProjectResponse?.response?.statusCode
           );
           console.error("Response details:", createProjectResponse?.response);
+          await updateUserRefreshToken(marquserId, ""); // Clear refresh token on failure
           iframeFallback(template.id); // Fallback in case of failure
           return;
         }
@@ -1517,6 +1720,8 @@ const fetchObjectType = async (context) => {
           console.error("Error response status:", error.response.status);
           console.error("Error response data:", error.response.data);
         }
+        // Set refresh token to an empty string if there's a request error
+        await updateUserRefreshToken(marquserId, "");
         iframeFallback(template.id); // Fallback in case of error
         return;
       }
@@ -1582,7 +1787,7 @@ const fetchObjectType = async (context) => {
 
     const contactId = context.crm.objectId;
     const userId = context.user.id;
-    const returnUrl = `https://app.marq.com/documents/editNewIframed/${templateId}?embeddedOptions=${encodedOptions}&creatorid=${userId}&contactid=${contactId}&hubid=${hubid}&objecttype=${objectType}&dealstage=${stageName}&templateid=${templateId}`;
+    const returnUrl = `https://app.marq.com/documents/editNewIframed/${templateId}?embeddedOptions=${encodedOptions}&creatorid=${userId}&contactid=${contactId}&apikey=${apiKey}&objecttype=${objectType}&dealstage=${stageName}&templateid=${templateId}`;
     const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(returnUrl)}`;
 
     iframeSrc =
@@ -1599,16 +1804,25 @@ const fetchObjectType = async (context) => {
     setShouldPollForProjects({ isPolling: true, templateId: templateId });
   }
 
-  const startPollingForMarqUser = () => {
+  const startPollingForRefreshToken = () => {
+    setIsRefreshTokenClicked(true);
     setIsPolling(true); // Start polling when the button is clicked
   };
 
-  const pollForMarqUser = async () => {
+  const pollForRefreshToken = async () => {
     try {
+      // console.log("Polling for refresh token...");
       const userId = context.user.id;
-      const createusertable = await hubspot.fetch({
-        name: "marqouathhandler",
-        parameters: { userId: userId },
+      
+      const createusertable = await hubspot.fetch(
+        "https://marqembed.fastgenapp.com/marqouathhandler", 
+      {
+        method: "POST",
+        body: {
+          userId: userId,
+          marquserid: 'someMarqUserId',  // Dynamically fetch marquserid
+          refreshtoken: 'someRefreshToken',  // Dynamically fetch refresh token
+        }
       });
 
       if (createusertable?.response?.body) {
@@ -1616,22 +1830,27 @@ const fetchObjectType = async (context) => {
         const responseBody = JSON.parse(createusertable.response.body);
         const userData = responseBody?.row?.values || {};
 
-        marquserinitialized = userData?.marquserinitialized || null;
+        // Assign to global `currentRefreshToken`
+        currentRefreshToken = userData?.refreshToken || null;
 
         if (
-          marquserinitialized
+          currentRefreshToken &&
+          currentRefreshToken !== "null" &&
+          currentRefreshToken !== ""
         ) {
+          // console.log("Refresh token found:", currentRefreshToken);
           setIsPolling(false); // Stop polling
           setShowTemplates(true);
           fetchPropertiesAndLoadConfig(objectType); // Ensure objectType is defined
-          pollForMarqAccount();
+          setIsConnectedToMarq(true); // Assuming this should trigger some UI change
+          pollForAccountRefreshToken();
         } else {
           setShowTemplates(false);
         }
       } else {
       }
     } catch (error) {
-      console.error("Error while polling for marq user:", error);
+      console.error("Error while polling for refresh token:", error);
     }
   };
 
@@ -1639,7 +1858,7 @@ const fetchObjectType = async (context) => {
     let pollInterval;
 
     if (isPolling) {
-      pollInterval = setInterval(pollForMarqUser, 5000); // Poll every 5 seconds
+      pollInterval = setInterval(pollForRefreshToken, 5000); // Poll every 5 seconds
     }
 
     return () => {
@@ -1647,16 +1866,24 @@ const fetchObjectType = async (context) => {
     };
   }, [isPolling]);
 
-  const startPollingForMarqAccount = () => {
+  const startPollingForAccountRefreshToken = () => {
+    setIsAccountTokenClicked(true);
+
+    setloadingaccountrefreshtoken(true);
     setAccountIsPolling(true); // Start polling when the button is clicked
   };
 
-  const pollForMarqAccount = async () => {
+  const pollForAccountRefreshToken = async () => {
     try {
-      // Fetch account data using the serverless function
-      const createaccounttable = await hubspot.fetch({
-        name: "fetchAccountTable",
-        parameters: { objectType: objectType, userId: userId }, // Include userId in the parameters
+
+      const createaccounttable = await fetch("https://marqembed.fastgenapp.com/fetch-accounttable", {
+        method: "POST", // Assuming it's a POST request
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          objectType: objectType, // Pass objectType as a parameter
+        }),
       });
 
       if (!createaccounttable?.response?.body) {
@@ -1675,30 +1902,36 @@ const fetchObjectType = async (context) => {
 
       const accountData = accountResponseBody?.dataRow?.values || {};
 
-      marqaccountinitialized = accountData?.marqaccountinitialized || null;
+      // Extract the refresh token
+      currentAccountRefreshToken = accountData?.refreshToken || null;
       marqAccountId = accountData?.accountId || null;
 
-      if (!marqaccountinitialized) {
+      if (!currentAccountRefreshToken) {
         console.warn(
-          "Marq account not initialized, will continue polling."
+          "No valid account refresh token found, will continue polling."
         );
-        setShowMarqAccountButton(true); // Optionally allow the user to retry
+        setShowAccountTokenButton(true); // Optionally allow the user to retry
         return;
       }
 
+      // Stop polling and hide the account token button
       setAccountIsPolling(false);
-      setShowMarqAccountButton(false);
+      setloadingaccountrefreshtoken(false);
+      setShowAccountTokenButton(false);
 
+      // Call the function to create or update the dataset with the refresh token
       try {
-        await createOrUpdateDataset();
+        // Call the function to create or update the dataset with the refresh token
+        await createOrUpdateDataset(currentAccountRefreshToken);
       } catch (error) {
         console.error("Error creating or updating dataset:", error);
       }
     } catch (error) {
       console.error(
-        "Error while polling for Marq account:",
+        "Error while polling for account refresh token:",
         error.message || error
       );
+      setloadingaccountrefreshtoken(false);
     }
   };
 
@@ -1707,7 +1940,7 @@ const fetchObjectType = async (context) => {
 
     // Start polling if the account is set to be polling
     if (isAccountPolling) {
-      pollAccountInterval = setInterval(pollForMarqAccount, 5000); // Poll every 5 seconds
+      pollAccountInterval = setInterval(pollForAccountRefreshToken, 5000); // Poll every 5 seconds
     }
 
     // Cleanup interval when polling stops or component unmounts
@@ -1838,26 +2071,43 @@ const fetchObjectType = async (context) => {
         const userid = context.user.id;
         const userEmail = context.user.email;
 
-        const createusertable = await hubspot.fetch({
-          name: "marqouathhandler",
-          parameters: { userId: userid },
+        // Fetch API key and store it
+        const apiKey = await setapi(userid, userEmail);
+
+        setAPIkey(apiKey);
+
+        // Step 1: Fetch Marq user data to retrieve the refresh token
+        const createusertable = await hubspot.fetch(
+          "https://marqembed.fastgenapp.com/marqouathhandler", 
+        {
+          method: "POST",
+          body: {
+            userId: userid,
+            marquserid: 'someMarqUserId',  // Dynamically fetch marquserid
+            refreshtoken: 'someRefreshToken',  // Dynamically fetch refresh token
+          }
         });
 
         if (createusertable?.response?.body) {
           const userData =
             JSON.parse(createusertable.response.body)?.row?.values || {};
-          marquserinitialized = userData.marquserinitialized || null;
+          currentRefreshToken = userData.refreshToken || null;
 
-          if (marquserinitialized) {
+          // Validate refresh token and show templates if available
+          if (currentRefreshToken) {
+            setIsRefreshTokenClicked(true);
             setShowTemplates(true); // Use setShowTemplates to trigger the display of templates
 
+            // Step 2: Fetch Marq account data if refresh token is valid
             await fetchMarqAccountData();
             // console.log("fetched Marq AccountData")
           } else {
+            // No refresh token, handle polling or error case
             setShowTemplates(false); // Explicitly hide templates
+            //startPollingForRefreshToken();
           }
         } else {
-          console.error("Failed to fetch user table.");
+          console.error("Failed to fetch user table for refresh token.");
         }
       } catch (error) {
         console.error("Error in fetching user data:", error);
@@ -1877,14 +2127,16 @@ const fetchObjectType = async (context) => {
   // Separate function to fetch Marq account data
   const fetchMarqAccountData = async () => {
     try {
-      const userId = context.user.id;
-      const createaccounttable = await hubspot.fetch({
-        name: "dataTableHandler",
-        parameters: {
+      
+      const createaccounttable = await hubspot.fetch(
+        "https://marqembed.fastgenapp.com/datatablehandler",
+        {
+          method: "POST",
+          body: {
           objectType: objectType,
-          userId: userId, // Pass the userId as a parameter
-        },
-      });
+          },
+        }
+      );
 
       if (createaccounttable?.response?.body) {
         const accountData =
@@ -1892,23 +2144,28 @@ const fetchObjectType = async (context) => {
         const matchedData =
           JSON.parse(createaccounttable.response.body)?.objectTypeRow?.values ||
           {};
-        const marqaccountinitialized = accountData.marqaccountinitialized || null;
+        const currentAccountRefreshToken = accountData.refreshToken || null;
+        // console.log("Account refresh token:", currentAccountRefreshToken);
 
         datasetid = matchedData.datasetid || null;
         collectionid = matchedData.collectionid || null;
 
-        if (marqaccountinitialized) {
-          setShowMarqAccountButton(false);
+        // Validate account refresh token and show/hide button accordingly
+        if (currentAccountRefreshToken) {
+          setIsAccountTokenClicked(true);
+          setShowAccountTokenButton(false);
 
           if (!datasetid || !collectionid) {
-            await createOrUpdateDataset();
+            await createOrUpdateDataset(currentAccountRefreshToken);
           }
         } else {
-          setShowMarqAccountButton(true);
+          setIsAccountTokenClicked(false);
+          setShowAccountTokenButton(true);
         }
       } else {
         console.error("Failed to fetch Marq account data.");
-        setShowMarqAccountButton(true);
+        setIsAccountTokenClicked(false);
+        setShowAccountTokenButton(true);
       }
     } catch (error) {
       console.error("Error in fetching Marq account data:", error);
@@ -1919,6 +2176,9 @@ const fetchObjectType = async (context) => {
   useEffect(() => {
     initialize();
   }, [
+    apiKey,
+    accessToken,
+    currentRefreshToken,
     context.crm.objectId,
     context.crm.objectTypeId,
     objectType,
@@ -2029,6 +2289,7 @@ const fetchObjectType = async (context) => {
   ]);
 
   const handleConnectToMarq = async (
+    apiKey,
     userid,
     userEmail,
     metadataType
@@ -2036,6 +2297,7 @@ const fetchObjectType = async (context) => {
     try {
       const authorizationUrl = getAuthorizationUrl(
         metadataType,
+        apiKey,
         userid,
         userEmail
       ); // Pass userid and userEmail
@@ -2052,18 +2314,18 @@ const fetchObjectType = async (context) => {
     }
   };
 
-  function getAuthorizationUrl(metadataType, userid, userEmail) {
+  function getAuthorizationUrl(metadataType, apiKey, userid, userEmail) {
     try {
       const clientId = "ewn_nCMA1Hr6I0mNLtu4irzVzt29cWn4eqHL2ZnN";
       const clientSecret =
         "LPzHZo2GTtzWYPGL-lu_GxpxGCL_7RDDumN0rAmM_WxiFEhFglAE8MM0EnoDHKXJbJ0k1abBdfOqdZjyhx-Q";
-      const redirectUri = "https://info.marq.com/crm-oauth-hubspot2";
+      const redirectUri = "https://info.marq.com/crm-oauth-hubspot";
 
       const encodedRedirectUri = encodeURIComponent(redirectUri);
 
       // Create the state map that includes the API key, userId, email, and other details
       const stateMap = {
-        hubid: hubid,
+        apiKey: apiKey,
         metadataType: metadataType,
         clientId: clientId,
         clientSecret: clientSecret,
@@ -2108,17 +2370,21 @@ const fetchObjectType = async (context) => {
   }
 
   // UPDATED createOrUpdateDataset FUNCTION v3
-  const createOrUpdateDataset = async () => {
-    const userId = context.user.id; // Get the user ID
+  const createOrUpdateDataset = async (refreshToken) => {
   
     try {
       const clientid = process.env.CLIENT_ID;
       const clientsecret = process.env.CLIENT_SECRET;
   
       // Check if the dataset already exists
-      const checkDatasetResponse = await hubspot.fetch({
-        name: "fetchAccountTable",
-        parameters: { objectType: objectType, userId: userId }, // Include userId in the parameters
+      const checkDatasetResponse = await fetch("https://marqembed.fastgenapp.com/fetch-accounttable", {
+        method: "POST", // Assuming it's a POST request
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          objectType: objectType, // Pass objectType as a parameter
+        }),
       });
   
       accountResponseBody = JSON.parse(checkDatasetResponse.response.body);
@@ -2133,10 +2399,14 @@ const fetchObjectType = async (context) => {
       if (datasetid && collectionid) {
         return; // Dataset already exists, exit
       } else {
-        // Call the createDataset serverless function
+
+        // ==============================================
+        // Fastgen table. Blake did not do anything here
+        // ==============================================
         const createDatasetResponse = await hubspot.fetch({
           name: "createDataset",
           parameters: {
+            refresh_token: refreshToken,
             clientid: clientid,
             marqAccountId: marqAccountId,
             clientsecret: clientsecret,
@@ -2151,29 +2421,59 @@ const fetchObjectType = async (context) => {
         // Handle successful creation of the dataset
         if (createDatasetResponse?.response?.statusCode === 200) {
           const datasetResult = JSON.parse(createDatasetResponse.response.body);
+          const new_refresh_token = datasetResult.new_refresh_token;
           datasetid = datasetResult.dataSourceId;
           collectionid = datasetResult.collectionId;
   
-          await hubspot.fetch({
-            name: "updateDataset",
-            parameters: {
-              objectType: objectType,
-              datasetid: datasetid,
-              collectionid: collectionid,
-              userId: userId, // Include userId
-            },
-          });
+          // Update account refresh token with the new refresh token after success
+          await hubspot.fetch(
+            "https://marqembed.fastgenapp.com/update-accountrefresh",
+            {
+              method: "POST",
+              body: {
+                refreshToken: new_refresh_token || refreshToken, // Use new refresh token if available
+              }
+            },)
+  
+          await hubspot.fetch(
+            "https://marqembed.fastgenapp.com/update-dataset",
+            {
+              method: "POST",
+              body: {objectType: objectType,
+              datasetId: datasetid,
+              collectionId: collectionid
+            }
+            },);
         } else {
           console.error(
             `Failed to create dataset for ${objectType}:`,
             createDatasetResponse?.response?.body
           );
   
+          await hubspot.fetch(
+            "https://marqembed.fastgenapp.com/update-accountrefresh",
+            {
+              method: "POST",
+              body: {
+                refreshToken: "", // Set refresh token to blank on error
+              }
+            },)
+  
           throw new Error("Failed to create dataset.");
         }
       }
     } catch (error) {
       console.error("Error in createOrUpdateDataset:", error.message);
+  
+      // Handle general errors and set refresh token to blank
+      await hubspot.fetch(
+        "https://marqembed.fastgenapp.com/update-accountrefresh",
+        {
+          method: "POST",
+          body: {
+            refreshToken: "", // Set refresh token to blank on error
+          }
+        },)
     }
   };
   
@@ -2205,14 +2505,14 @@ const fetchObjectType = async (context) => {
   if (showTemplates) {
     return (
       <>
-        {/* Marq Account Button */}
-        {ShowMarqAccountButton && (
+        {/* Account Token Button */}
+        {showAccountTokenButton && (
           <LoadingButton
             href={accountoauthUrl}
             loading={isLoading} // Use isLoading to control the spinner
             variant="primary"
             onClick={() => {
-              startPollingForMarqAccount();
+              startPollingForAccountRefreshToken();
             }}
           >
             {isLoading ? "Syncing..." : "Sync Marq account data"}
@@ -2419,14 +2719,14 @@ const fetchObjectType = async (context) => {
       </>
     );
   } else {
-    if (!marquserinitialized) {
+    if (!currentRefreshToken) {
       return (
         <Button
           href={authurl}
           variant="primary"
           size="med"
           type="button"
-          onClick={startPollingForMarqUser}
+          onClick={startPollingForRefreshToken}
         >
           Connect to Marq
         </Button>
