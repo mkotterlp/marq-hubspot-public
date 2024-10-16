@@ -179,7 +179,7 @@ const fetchObjectType = async (context) => {
       // Fetch user data from the 'marqouathhandler' serverless function
       try {
         const createusertable = await hubspot.fetch(
-          "https://marqembed.fastgenapp.com/marq-ouath-handler", 
+          "https://marqembed.fastgenapp.com/marqouathhandler2", 
         {
           method: "POST",
           body: {
@@ -1563,9 +1563,13 @@ const fetchObjectType = async (context) => {
   const pollForMarqUser = async () => {
     try {
       const userId = context.user.id;
-      const createusertable = await hubspot.fetch({
-        name: "marqouathhandler",
-        parameters: { userId: userId },
+      const createusertable = await hubspot.fetch(
+        "https://marqembed.fastgenapp.com/marq-ouath-handler", 
+      {
+        method: "POST",
+        body: {
+          userId: userId
+              }
       });
 
       if (createusertable?.response?.body) {
@@ -1795,9 +1799,13 @@ const fetchObjectType = async (context) => {
         const userid = context.user.id;
         const userEmail = context.user.email;
 
-        const createusertable = await hubspot.fetch({
-          name: "marqouathhandler",
-          parameters: { userId: userid },
+        const createusertable = await hubspot.fetch(
+          "https://marqembed.fastgenapp.com/marqouathhandler2", 
+        {
+          method: "POST",
+          body: {
+            userId: userId
+                }
         });
 
         if (createusertable?.response?.body) {
