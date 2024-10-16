@@ -50,7 +50,6 @@ const Extension = ({ context, actions }) => {
 
   const [stageName, setStage] = useState("");
   const [propertiesToWatch, setpropertiesToWatch] = useState([]);
-  const [objectType, setObjectType] = useState("");
   const [initialFilteredTemplates, setInitialFilteredTemplates] = useState([]);
   const [config, setConfig] = useState({});
   const [fieldsArray, setFieldsArray] = useState([]);
@@ -84,6 +83,8 @@ const Extension = ({ context, actions }) => {
   const pollingTimerRef = useRef(null);
   const hasSyncedOnceRef = useRef(false);
 
+  let objectId = "";
+  let objectType = "";
   let marquserinitialized = false;
   let marqaccountinitialized = false;
   let hubId = "";
@@ -106,13 +107,83 @@ const Extension = ({ context, actions }) => {
     },
   ];
 
+  const initialize = async () => {
+    // Ensure we haven't initialized already and that objectType is available
+    console.log("Initialization called...");
+    if (!hasInitialized.current && objectType) {
+        hasInitialized.current = true;
+
+        // Fetch properties and associated projects for the objectType
+        console.log("Fetching properties and loading config...");
+        fetchPropertiesAndLoadConfig(objectType);
+        console.log("Fetching associated projects and details...");
+        fetchAssociatedProjectsAndDetails(objectType);
+
+        try {
+
+            const createusertable = await hubspot.fetch(
+                "https://marqembed.fastgenapp.com/createusertable", 
+                {
+                    method: "POST",
+                    body: {
+                    }
+                }
+            );
+
+            console.log("Received response from the user table API.");
+          console.log(createusertable); // Logs the entire response object
+          console.log(createusertable.response); // Logs the response property
+          console.log(createusertable.response.body); // Logs the body of the response (which is probably the most important part)
+
+            
+            if (createusertable?.response?.body) {
+                const userData = JSON.parse(createusertable.response.body)?.row?.values || {};
+                marquserinitialized = userData.marquserinitialized || null;
+
+                console.log(`Marq User Initialized: ${marquserinitialized}`);
+
+                if (marquserinitialized) {
+                    console.log("User is initialized. Showing templates...");
+                    setShowTemplates(true); // Use setShowTemplates to trigger the display of templates
+                    await fetchMarqAccountData();
+                    console.log("Fetched Marq Account Data");
+                } else {
+                    console.log("User is not initialized. Hiding templates...");
+                    setShowTemplates(false); // Explicitly hide templates
+                }
+            } else {
+                console.error("Failed to create user table. No response body.");
+            }
+        } catch (error) {
+            console.error("Error in fetching user data:", error);
+        }
+    } else if (hasInitialized.current) {
+        console.log("Already initialized. Filtering templates...");
+        // If already initialized, filter templates based on search criteria
+        filterTemplates(
+            fulltemplatelist,
+            searchTerm,
+            fieldsArray,
+            filtersArray,
+            crmProperties
+        );
+    }
+};
+
 
 useEffect(() => {
   if (context) {
     console.log("Context:", context); 
-    fetchObjectType(context);  // Call fetchObjectType only when context is available
-    hubId = context.portal.id;
-    console.log("Hubid:", hubId); 
+    
+    const fetchData = async () => {
+      await fetchObjectType(context);
+      objectId = context.crm.objectId;
+      hubId = context.portal.id;
+      initialize();
+    };
+
+    // Call the async function
+    fetchData();
   } else {
     console.log("Context is not available yet.");
   }
@@ -144,7 +215,7 @@ const fetchObjectType = async (context) => {
         const objectTypeResponseBody = await objectTypeResponse.json();
         
         // Accessing the objectType within the body -> Data -> body
-        const objectType = objectTypeResponseBody.Data?.body?.objectType;
+        objectType = objectTypeResponseBody.Data?.body?.objectType;
 
         if (objectType) {
           console.log("Object Type:", objectType);
@@ -179,7 +250,7 @@ const fetchObjectType = async (context) => {
       // Fetch user data from the 'marqouathhandler' serverless function
       try {
         const createusertable = await hubspot.fetch(
-          "https://marqembed.fastgenapp.com/marqouathhandler2", 
+          "https://marqembed.fastgenapp.com/fetchusertable", 
         {
           method: "POST",
           body: {
@@ -413,12 +484,12 @@ const fetchObjectType = async (context) => {
                 headers: {
                   "Content-Type": "application/json"
                 },
-                body: JSON.stringify({
+                body: {
                   objectId: context.crm.objectId,
                   objectType: objectType,
                   properties: fields,
                   userId: userId // Include userId in the parameters
-                })
+                }
               });
 
               if (propertiesResponse?.response?.body) {
@@ -479,12 +550,12 @@ const fetchObjectType = async (context) => {
                 headers: {
                   "Content-Type": "application/json"
                 },
-                body: JSON.stringify({
+                body: {
                   objectId: context.crm.objectId,
                   objectType: objectType,
                   properties: fields,
                   userId: userId // Include userId in the parameters
-                })
+                }
               });
 
               if (dynamicpropertiesResponse?.response?.body) {
@@ -558,10 +629,10 @@ const fetchObjectType = async (context) => {
                 headers: {
                   'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
+                body: {
                   dealId: context.crm.objectId, // Include dealId in the body
                   userId: userId // Include userId in the body as well
-                }),
+                },
               });
 
               // Parse the response and return the line items
@@ -789,10 +860,10 @@ const fetchObjectType = async (context) => {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
+          body: {
             objectId: objectId,
             objectType: objectType,
-          }),
+          },
         });
       
         // Check if the first fetch was successful and parse the response
@@ -813,9 +884,9 @@ const fetchObjectType = async (context) => {
               headers: {
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({
+              body: {
                 objectIds: Array.from(uniqueProjectIds), // Convert Set to Array if needed
-              }),
+              },
             });
       
             // Check if the second fetch was successful and parse the response
@@ -1785,59 +1856,8 @@ const fetchObjectType = async (context) => {
     currentPage * RECORDS_PER_PAGE
   );
 
-  const initialize = async () => {
-    // Ensure we haven't initialized already and that objectType is available
-    if (!hasInitialized.current && objectType) {
-      hasInitialized.current = true;
 
-      // Fetch properties and associated projects for the objectType
-      fetchPropertiesAndLoadConfig(objectType);
-      fetchAssociatedProjectsAndDetails(objectType);
 
-      try {
-        // Fetch user ID and email from context
-        const userid = context.user.id;
-        const userEmail = context.user.email;
-
-        const createusertable = await hubspot.fetch(
-          "https://marqembed.fastgenapp.com/marqouathhandler2", 
-        {
-          method: "POST",
-          body: {
-            userId: userId
-                }
-        });
-
-        if (createusertable?.response?.body) {
-          const userData =
-            JSON.parse(createusertable.response.body)?.row?.values || {};
-          marquserinitialized = userData.marquserinitialized || null;
-
-          if (marquserinitialized) {
-            setShowTemplates(true); // Use setShowTemplates to trigger the display of templates
-
-            await fetchMarqAccountData();
-            // console.log("fetched Marq AccountData")
-          } else {
-            setShowTemplates(false); // Explicitly hide templates
-          }
-        } else {
-          console.error("Failed to fetch user table.");
-        }
-      } catch (error) {
-        console.error("Error in fetching user data:", error);
-      }
-    } else if (hasInitialized.current) {
-      // If already initialized, filter templates based on search criteria
-      filterTemplates(
-        fulltemplatelist,
-        searchTerm,
-        fieldsArray,
-        filtersArray,
-        crmProperties
-      );
-    }
-  };
 
   // Separate function to fetch Marq account data
   const fetchMarqAccountData = async () => {
@@ -1880,19 +1900,6 @@ const fetchObjectType = async (context) => {
     }
   };
 
-
-  useEffect(() => {
-    initialize();
-  }, [
-    context.crm.objectId,
-    context.crm.objectTypeId,
-    objectType,
-    fieldsArray,
-    filtersArray,
-    crmProperties,
-    fulltemplatelist,
-    searchTerm,
-  ]);
 
   useEffect(() => {
     // Function to create a mapping from cleaned fields to original fields
