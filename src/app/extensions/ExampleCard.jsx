@@ -38,6 +38,7 @@ const Extension = ({ context, actions }) => {
   const [isAccountPolling, setAccountIsPolling] = useState(false);
   const [loadingTemplateId, setLoadingTemplateId] = useState(null);
   const [ShowMarqAccountButton, setShowMarqAccountButton] = useState(false);
+  const [ShowMarqAUserButton, setShowMarqAUserButton] = useState(false);
   const [accountoauthUrl, setAccountAuthorizationUrl] = useState("");
   const [showTemplates, setShowTemplates] = useState(true);
   const [templates, setTemplates] = useState([]);
@@ -113,11 +114,7 @@ const Extension = ({ context, actions }) => {
     if (!hasInitialized.current && objectType) {
         hasInitialized.current = true;
 
-        // Fetch properties and associated projects for the objectType
-        // console.log("Fetching properties and loading config...");
-        // fetchPropertiesAndLoadConfig(objectType);
-        // console.log("Fetching associated projects and details...");
-        // fetchAssociatedProjectsAndDetails(objectType);
+
 
         try {
 
@@ -136,16 +133,20 @@ const Extension = ({ context, actions }) => {
             console.log("Response Body:", createusertableResponseBody);
 
             // Take actions based on the value of marquserinitialized
-    if (marquserinitialized === 1) {
+    if (marquserinitialized) {
       console.log("User is initialized. Showing templates...");
       setShowTemplates(true);  // Trigger to show templates
+      console.log("Fetching properties and loading config...");
+      fetchPropertiesAndLoadConfig(objectType);
+      console.log("Fetching associated projects and details...");
+      fetchAssociatedProjectsAndDetails(objectType);
       await fetchMarqAccountData();  // Fetch account data if needed
-  } else if (marquserinitialized === 0) {
-      console.log("User is not initialized. Hiding templates...");
-      setShowTemplates(false);  // Hide templates or take other actions
   } else {
-      console.log("Unexpected value for marquserinitialized:", marquserinitialized);
-  }
+      console.log("User is not initialized. Hiding templates...");
+      setIsLoading(false);
+      setShowMarqAUserButton(true);
+      setShowTemplates(false);  // Hide templates or take other actions
+  } 
         
         } else {
             // Log the status and status text for error debugging
@@ -2384,7 +2385,7 @@ const fetchObjectType = async (context) => {
       </>
     );
   } else {
-    if (!marquserinitialized) {
+    if (ShowMarqAUserButton) {
       return (
         <Button
           href={authurl}
