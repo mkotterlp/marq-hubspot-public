@@ -121,20 +121,30 @@ const Extension = ({ context, actions }) => {
 
         try {
 
-            const createusertable = await hubspot.fetch(
-                "https://marqembed.fastgenapp.com/createusertable", 
-                {
-                    method: "POST",
-                    body: {
-                    }
-                }
-            );
-
-            console.log("Received response from the user table API.");
-          console.log(createusertable); // Logs the entire response object
-          console.log(createusertable.response); // Logs the response property
-          console.log(createusertable.response.body); // Logs the body of the response (which is probably the most important part)
-
+          const createusertable = await hubspot.fetch(
+            "https://marqembed.fastgenapp.com/createusertable", 
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    // Your request body data here
+                })
+            }
+        );
+        
+        console.log("Received response from the user table API.");
+        
+        // Check if the response is okay
+        if (createusertable.ok) {
+            // Read the response as JSON
+            const responseData = await createusertable.json(); // Or use .text() if the response is plain text
+            console.log("Response JSON:", responseData);
+        } else {
+            console.error("Error:", createusertable.status, createusertable.statusText);
+        }
+        
             
             if (createusertable?.response?.body) {
                 const userData = JSON.parse(createusertable.response.body)?.row?.values || {};
