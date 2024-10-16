@@ -183,9 +183,8 @@ const fetchObjectType = async (context) => {
         {
           method: "POST",
           body: {
-            userId: userId,
-            marquserid: 'someMarqUserId',  // Dynamically fetch marquserid
-          }
+            userId: userId
+                }
         });
 
         if (createusertable?.response?.body) {
