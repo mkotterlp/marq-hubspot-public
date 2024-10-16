@@ -38,8 +38,7 @@ const Extension = ({ context, actions }) => {
   const [isAccountPolling, setAccountIsPolling] = useState(false);
   const [loadingTemplateId, setLoadingTemplateId] = useState(null);
   const [ShowMarqAccountButton, setShowMarqAccountButton] = useState(false);
-  const [ShowMarqAUserButton, setShowMarqAUserButton] = useState(false);
-  const [accountoauthUrl, setAccountAuthorizationUrl] = useState("");
+  const [ShowMarqUserButton, setShowMarqUserButton] = useState(false);
   const [showTemplates, setShowTemplates] = useState(true);
   const [templates, setTemplates] = useState([]);
   const [allTemplates, setAllTemplates] = useState([]);
@@ -48,7 +47,6 @@ const Extension = ({ context, actions }) => {
   const [lineitemProperties, setLineitemProperties] = useState({});
   const [isIframeOpen, setIframeOpen] = useState(false);
   const [title, setTitle] = useState("Relevant Content");
-  const [authurl, setauth] = useState(""); 
   const [stageName, setStage] = useState("");
   const [propertiesToWatch, setpropertiesToWatch] = useState([]);
   const [initialFilteredTemplates, setInitialFilteredTemplates] = useState([]);
@@ -88,9 +86,11 @@ const Extension = ({ context, actions }) => {
   let objectType = "";
   let userid = "";
   let userEmail = "";
+  let userauthurl = "";
+  let accountauthurl = "";
   let marquserinitialized = false;
   let marqaccountinitialized = false;
-  let hubId = "";
+  let hubid = "";
   let paginatedTemplates = [];
   let propertiesBody = {};
   let configData = {};
@@ -113,21 +113,27 @@ const Extension = ({ context, actions }) => {
   const initialize = async () => {
     // Ensure we haven't initialized already and that objectType is available
     console.log("Initialization called...");
+
+    const authorizationUrlResponse = await handleConnectToMarq(
+      userid,
+      userEmail,
+      "user"
+    ); 
+    userauthurl = authorizationUrlResponse?.authorization_url; // Access the 'authorization_url' from the returned object
+    console.log("userauthurl:", userauthurl);
+    
+    const accountauthorizationUrlResponse = await handleConnectToMarq(
+      userid,
+      userEmail,
+      "data"
+    );
+    accountauthurl = accountauthorizationUrlResponse?.authorization_url; // Access the 'authorization_url' from the returned object
+    console.log("accountauthurl:", accountauthurl);
+    
+
+
     if (!hasInitialized.current && objectType) {
         hasInitialized.current = true;
-
-        const authorizationUrl = await handleConnectToMarq(
-          userid,
-          userEmail,
-          "user"
-        ); // Pass the API key, userid, and userEmail
-        setauth(authorizationUrl);
-        const accountauthorizationUrl = await handleConnectToMarq(
-          userid,
-          userEmail,
-          "data"
-        );
-        setAccountAuthorizationUrl(accountauthorizationUrl);
 
         try {
 
@@ -157,7 +163,7 @@ const Extension = ({ context, actions }) => {
   } else {
       console.log("User is not initialized. Hiding templates...");
       setIsLoading(false);
-      setShowMarqAUserButton(true);
+      setShowMarqUserButton(true);
       setShowTemplates(false);  // Hide templates or take other actions
   } 
         
@@ -190,7 +196,7 @@ useEffect(() => {
     const fetchData = async () => {
       await fetchObjectType(context);
       objectId = context.crm.objectId;
-      hubId = context.portal.id;
+      hubid = context.portal.id;
       userid = context.user.id;
       userEmail = context.user.email;
       initialize();
@@ -212,7 +218,6 @@ const fetchObjectType = async (context) => {
 
     // Check if CRM data exists in the context
     if (context.crm && context.crm.objectTypeId) {
-      const userId = context.user.id;
 
       const objectTypeResponse = await hubspot.fetch(
         "https://marqembed.fastgenapp.com/fetch-object",
@@ -220,7 +225,7 @@ const fetchObjectType = async (context) => {
           method: "POST",
           body: {
             objectTypeId: context.crm.objectTypeId,
-            userId: userId, 
+            userId: userid, 
           },
         }
       );
@@ -252,10 +257,8 @@ const fetchObjectType = async (context) => {
     try {
       setIsLoading(true);
 
-      const userId = context.user.id;
-
       // Validate that userid is available before proceeding
-      if (!userId) {
+      if (!userid) {
         console.error("Error: Missing user ID.");
         setIsLoading(false);
         return;
@@ -268,7 +271,7 @@ const fetchObjectType = async (context) => {
         {
           method: "POST",
           body: {
-            userId: userId
+            userId: userid
                 }
         });
 
@@ -278,7 +281,6 @@ const fetchObjectType = async (context) => {
           lastTemplateSyncDate = userData.lastTemplateSyncDate;
           templateLink = userData.templatesfeed;
           const marquserid = userData.marqUserID;
-          // const marquserid = userData.marqUserID;
 
           marquserinitialized = userData.marquserinitialized;
 
@@ -372,7 +374,7 @@ const fetchObjectType = async (context) => {
                 {
                   method: "POST",
                   body: {
-                    userId: userId,
+                    userId: userid,
                     templatesJsonUrl: templateLink
                   },
                 });
@@ -444,7 +446,6 @@ const fetchObjectType = async (context) => {
 
       // Fetch config data from 'hubdbHelper'
       try {
-        const userId = context.user.id;
 
         const configDataResponse = await hubspot.fetch(
           "https://marqembed.fastgenapp.com/hubdb-helper",
@@ -455,7 +456,7 @@ const fetchObjectType = async (context) => {
             },
             body: JSON.stringify({
               objectType: objectType,
-              userId: userId,
+              userId: userid,
             }),
           }
         );
@@ -489,7 +490,6 @@ const fetchObjectType = async (context) => {
           // Fetch CRM properties if fields are available
           if (fields.length > 0) {
             try {
-              const userId = context.user.id;
 
               const propertiesResponse = await fetch(
                 "https://marqembed.fastgenapp.com/get-object-properties", 
@@ -502,7 +502,7 @@ const fetchObjectType = async (context) => {
                   objectId: context.crm.objectId,
                   objectType: objectType,
                   properties: fields,
-                  userId: userId // Include userId in the parameters
+                  userId: userid // Include userId in the parameters
                 }
               });
 
@@ -557,7 +557,6 @@ const fetchObjectType = async (context) => {
             objectTypeFieldsMap
           )) {
             try {
-              const userId = context.user.id;
 
               const dynamicpropertiesResponse = await fetch("https://marqembed.fastgenapp.com/get-object-properties", {
                 method: "POST", // Ensure the request method matches the expected method for the endpoint
@@ -568,7 +567,7 @@ const fetchObjectType = async (context) => {
                   objectId: context.crm.objectId,
                   objectType: objectType,
                   properties: fields,
-                  userId: userId // Include userId in the parameters
+                  userId: userid // Include userId in the parameters
                 }
               });
 
@@ -636,7 +635,6 @@ const fetchObjectType = async (context) => {
             console.log("Starting deal check for lineItems:");
             if (objectType === "DEAL") {
               // Make your API call to fetch associated line items for the deal
-              const userId = context.user.id;
 
               const lineItemsResponse = await fetch('https://marqembed.fastgenapp.com/fetch-line-items', {
                 method: 'POST', // Assuming POST based on the nature of the operation, adjust if needed
@@ -645,7 +643,7 @@ const fetchObjectType = async (context) => {
                 },
                 body: {
                   dealId: context.crm.objectId, // Include dealId in the body
-                  userId: userId // Include userId in the body as well
+                  userId: userid // Include userId in the body as well
                 },
               });
 
@@ -973,7 +971,6 @@ const fetchObjectType = async (context) => {
     setIframeOpen(true);
 
     try {
-      const userId = context.user.id;
       const contactId = context.crm.objectId;
 
       const createaccounttable = await fetch("https://marqembed.fastgenapp.com/fetchaccounttable", {
@@ -1019,7 +1016,7 @@ const fetchObjectType = async (context) => {
 
       await updateData();
 
-      let editorinnerurl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${encodedoptions}&creatorid=${userId}&contactid=${contactId}&hubid=${hubid}&objecttype=${objectType}&fileid=${fileId}`;
+      let editorinnerurl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${encodedoptions}&creatorid=${userid}&contactid=${contactId}&hubid=${hubid}&objecttype=${objectType}&fileid=${fileId}`;
       const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(editorinnerurl)}`;
 
       editoriframeSrc =
@@ -1422,7 +1419,6 @@ const fetchObjectType = async (context) => {
     setIframeOpen(true);
 
     try {
-      const userId = context.user.id;
 
       const createaccounttable = await fetch("https://marqembed.fastgenapp.com/fetch-accounttable", {
         method: "POST", // Assuming it's a POST request
@@ -1430,7 +1426,7 @@ const fetchObjectType = async (context) => {
           "Content-Type": "application/json",
         },
         body:{
-          userId: userId,
+          userId: userid,
           objectType: objectType, // Pass objectType as a parameter
         },
       });
@@ -1525,8 +1521,7 @@ const fetchObjectType = async (context) => {
             );
 
             const contactId = context.crm.objectId;
-            const userId = context.user.id;
-            const returnUrl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${encodedOptions}&creatorid=${userId}&contactid=${contactId}&hubid=${hubid}&objecttype=${objectType}&dealstage=${stageName}&templateid=${template.id}`;
+            const returnUrl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${encodedOptions}&creatorid=${userid}&contactid=${contactId}&hubid=${hubid}&objecttype=${objectType}&dealstage=${stageName}&templateid=${template.id}`;
             const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(returnUrl)}`;
 
             iframeSrc =
@@ -1623,8 +1618,7 @@ const fetchObjectType = async (context) => {
     );
 
     const contactId = context.crm.objectId;
-    const userId = context.user.id;
-    const returnUrl = `https://app.marq.com/documents/editNewIframed/${templateId}?embeddedOptions=${encodedOptions}&creatorid=${userId}&contactid=${contactId}&hubid=${hubid}&objecttype=${objectType}&dealstage=${stageName}&templateid=${templateId}`;
+    const returnUrl = `https://app.marq.com/documents/editNewIframed/${templateId}?embeddedOptions=${encodedOptions}&creatorid=${userid}&contactid=${contactId}&hubid=${hubid}&objecttype=${objectType}&dealstage=${stageName}&templateid=${templateId}`;
     const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(returnUrl)}`;
 
     iframeSrc =
@@ -1647,13 +1641,12 @@ const fetchObjectType = async (context) => {
 
   const pollForMarqUser = async () => {
     try {
-      const userId = context.user.id;
       const createusertable = await hubspot.fetch(
         "https://marqembed.fastgenapp.com/marq-ouath-handler", 
       {
         method: "POST",
         body: {
-          userId: userId
+          userId: userid
               }
       });
 
@@ -1702,7 +1695,7 @@ const fetchObjectType = async (context) => {
       // Fetch account data using the serverless function
       const createaccounttable = await hubspot.fetch({
         name: "fetchAccountTable",
-        parameters: { objectType: objectType, userId: userId }, // Include userId in the parameters
+        parameters: { objectType: objectType, userId: userid }, // Include userId in the parameters
       });
 
       if (!createaccounttable?.response?.body) {
@@ -1876,12 +1869,11 @@ const fetchObjectType = async (context) => {
   // Separate function to fetch Marq account data
   const fetchMarqAccountData = async () => {
     try {
-      const userId = context.user.id;
       const createaccounttable = await hubspot.fetch({
         name: "dataTableHandler",
         parameters: {
           objectType: objectType,
-          userId: userId, // Pass the userId as a parameter
+          userId: userid, // Pass the userId as a parameter
         },
       });
 
@@ -2014,92 +2006,52 @@ const fetchObjectType = async (context) => {
     dynamicProperties,
   ]);
 
-  const handleConnectToMarq = async (
-    userid,
-    userEmail,
-    metadataType
-  ) => {
+  const handleConnectToMarq = async (userid, userEmail, metadataType) => {
     try {
-      const authorizationUrl = getAuthorizationUrl(
-        metadataType,
-        userid,
-        userEmail
-      ); // Pass userid and userEmail
-
-      if (!authorizationUrl) {
-        throw new Error("Failed to generate authorization URL.");
+      // Log request data before sending the request
+      console.log("Sending payload:", {
+        userid: userid,
+        userEmail: userEmail,
+        metadataType: metadataType,
+      });
+  
+      const response = await hubspot.fetch("https://marqembed.fastgenapp.com/generate-auth-url", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userid: userid,
+          userEmail: userEmail,
+          metadataType: metadataType,
+        }),
+      });
+  
+      if (response.ok) {
+        const { authorizationUrl } = await response.json();
+        return authorizationUrl;
+      } else {
+        const errorBody = await response.text();
+        console.error("Failed to get the authorization URL", response.status, response.statusText, errorBody);
+        return null;
       }
-      // console.log(authorizationUrl)
-
-      return authorizationUrl; // Return the URL to be used in the href
     } catch (error) {
       console.error("Error during authorization process:", error.message);
-      // You can handle errors here, but avoid using alert since it's not supported.
-    }
-  };
-
-  function getAuthorizationUrl(metadataType, userid, userEmail) {
-    try {
-
-      const marqclientid = process.env.MARQ_CLIENT_ID;
-      const marqclientsecret = process.env.MARQ_CLIENT_SECRET;
-      const redirectUri = "https://info.marq.com/crm-oauth-hubspot2";
-
-      const encodedRedirectUri = encodeURIComponent(redirectUri);
-
-      // Create the state map that includes the API key, userId, email, and other details
-      const stateMap = {
-        hubid: hubid,
-        metadataType: metadataType,
-        redirectUri: encodedRedirectUri,
-        userid: userid, // Include the userId here
-        email: userEmail, // Include the userEmail here
-      };
-
-      const stateJson = JSON.stringify(stateMap);
-      const stateParam = btoa(stateJson); // Encode the state parameter
-
-      let scopes;
-      let authorizationUrl;
-      let authorizationURLBase;
-
-      // Determine the correct scopes and URL based on the metadata type
-      if (metadataType.toLowerCase() === "data") {
-        scopes = "data-service.admin project.content offline_access";
-        authorizationURLBase = "https://marq.com/oauth2/authorizeAccount";
-      } else {
-        scopes = "project.templates project.content offline_access";
-        authorizationURLBase = "https://marq.com/oauth2/authorize";
-      }
-
-      const encodedScopes = encodeURIComponent(scopes);
-
-      // Construct the authorization URL
-      authorizationUrl =
-        `${authorizationURLBase}` +
-        `?response_type=code` +
-        `&client_id=${marqclientid}` +
-        `&client_secret=${marqclientsecret}` +
-        `&scope=${encodedScopes}` +
-        `&redirect_uri=${encodedRedirectUri}` +
-        `&state=${stateParam}`;
-
-      return authorizationUrl;
-    } catch (error) {
-      console.error("Error generating authorization URL:", error.message);
       return null;
     }
-  }
+  };
+  
+  
+  
 
   // UPDATED createOrUpdateDataset FUNCTION v3
   const createOrUpdateDataset = async () => {
-    const userId = context.user.id; // Get the user ID
   
     try {
       // Check if the dataset already exists
       const checkDatasetResponse = await hubspot.fetch({
         name: "fetchAccountTable",
-        parameters: { objectType: objectType, userId: userId }, // Include userId in the parameters
+        parameters: { objectType: objectType, userId: userid }, // Include userId in the parameters
       });
   
       accountResponseBody = JSON.parse(checkDatasetResponse.response.body);
@@ -2141,7 +2093,7 @@ const fetchObjectType = async (context) => {
                 objectType: objectType,
                 datasetId: datasetid,
                 collectionId: collectionid,
-                userId: userId,
+                userId: userid,
                     }
             },);
         } else {
@@ -2189,7 +2141,7 @@ const fetchObjectType = async (context) => {
         {/* Marq Account Button */}
         {ShowMarqAccountButton && (
           <LoadingButton
-            href={accountoauthUrl}
+            href={accountauthurl}
             loading={isLoading} // Use isLoading to control the spinner
             variant="primary"
             onClick={() => {
@@ -2400,12 +2352,12 @@ const fetchObjectType = async (context) => {
       </>
     );
   } else {
-    if (ShowMarqAUserButton) {
+    if (ShowMarqUserButton) {
       return (
         <Button
-          href={authurl}
+          href={userauthurl}
           variant="primary"
-          size="med"
+          size="medium"
           type="button"
           onClick={startPollingForMarqUser}
         >
