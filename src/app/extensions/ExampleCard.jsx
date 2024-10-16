@@ -865,7 +865,7 @@ const fetchObjectType = async (context) => {
 
       try {
         // First API call to fetch associated projects
-        const associatedProjectsResponse = await fetch("https://marqembed.fastgenapp.com/fetch-projects", {
+        const associatedProjectsResponse = await hubspot.fetch("https://marqembed.fastgenapp.com/fetch-projects", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
