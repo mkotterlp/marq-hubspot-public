@@ -153,7 +153,7 @@ const Extension = ({ context, actions }) => {
     if (usertableresult) {
       console.log("User is initialized. Showing templates...");
       setShowTemplates(true);  // Trigger to show templates
-      fetchPropertiesAndLoadConfig(objectType);
+      fetchPropertiesAndLoadConfig();
       // fetchAssociatedProjectsAndDetails(objectType);
   } else {
       console.log("User is not initialized. Hiding templates...");
@@ -257,7 +257,7 @@ const fetchObjectType = async () => {
 };
 
 
-  const fetchPropertiesAndLoadConfig = async (objectType) => {
+  const fetchPropertiesAndLoadConfig = async () => {
     try {
       setIsLoading(true);
 
@@ -268,35 +268,6 @@ const fetchObjectType = async () => {
         return;
       }
 
-      // Fetch user data from the 'marqouathhandler' serverless function
-      try {
-        console.log("fetching endpoint fetchusertable... ")
-        const createusertable = await hubspot.fetch(
-          "https://marqembed.fastgenapp.com/fetchusertable", 
-        {
-          method: "POST",
-          body: {
-            userId: userid
-                }
-        });
-
-        if (createusertable?.response?.body) {
-          const responseBody = JSON.parse(createusertable.response.body);
-          const userData = responseBody.row?.values || {}; // Access values directly from row
-          lastTemplateSyncDate = userData.lastTemplateSyncDate;
-          templateLink = userData.templatesfeed;
-          const marquserid = userData.marqUserID;
-
-          marquserinitialized = userData.marquserinitialized;
-
-          // Validate required values before proceeding with further operations
-          if (!marquserinitialized || !marquserid) {
-            setShowTemplates(false);
-            setIsLoading(false);
-            return;
-          }
-
-          setMarquserid(marquserid);
 
           const currentTime = Date.now();
           const timeDifference = currentTime - lastTemplateSyncDate;
@@ -426,28 +397,8 @@ const fetchObjectType = async () => {
               );
             }
           }
-        } else {
-          console.error("Failed to create or fetch user table.");
-          console.error(
-            "Unexpected structure in createusertable:",
-            JSON.stringify(createusertable)
-          );
-        }
-      } catch (userTableError) {
-        console.error(
-          "Error occurred while fetching user table:",
-          userTableError
-        );
-      }
 
-      // Validate that objectType is available
-      if (!objectType) {
-        console.error("Error: Missing objectType.");
-        setIsLoading(false);
-        return;
-      }
 
-      const primaryobjectType = objectType;
 
       // Fetch config data from 'hubdbHelper'
       try {
@@ -1646,29 +1597,31 @@ const fetchObjectType = async () => {
 
   const pollForMarqUser = async () => {
     try {
-      const createusertable = await hubspot.fetch(
-        "https://marqembed.fastgenapp.com/marq-ouath-handler", 
-      {
-        method: "POST",
-        body: {
-          userId: userid
-              }
-      });
+      const marqlookup = await hubspot.fetch(
+        "https://marqembed.fastgenapp.com/marq-lookup", 
+        {
+            method: "POST",
+            body: {
+              objectTypeId: objectTypeId
+            }
+        }
+    );
+    
+    if (marqlookup.ok) {
+        // Parse the response body as JSON
+        const marqlookupResponseBody = await marqlookup.json();
+        const accounttableresult = marqlookupResponseBody.accounttableresult;
+        const usertableresult = marqlookupResponseBody.usertableresult;
+        const datatableresult = marqlookupResponseBody.datatableresult;
 
-      if (createusertable?.response?.body) {
-        // Access row and values properly
-        const responseBody = JSON.parse(createusertable.response.body);
-        const userData = responseBody?.row?.values || {};
-
-        marquserinitialized = userData?.marquserinitialized || null;
+        console.log("usertableresult:", usertableresult);
 
         if (
-          marquserinitialized
+          usertableresult
         ) {
           setIsPolling(false); // Stop polling
           setShowTemplates(true);
-          fetchPropertiesAndLoadConfig(objectType); // Ensure objectType is defined
-          pollForMarqAccount();
+          fetchPropertiesAndLoadConfig(); // Ensure objectType is defined
         } else {
           setShowTemplates(false);
         }
@@ -1949,7 +1902,7 @@ const fetchObjectType = async () => {
           (field) => updatedProperties[fieldMapping[field]]
         );
         if (hasRelevantChange) {
-          fetchPropertiesAndLoadConfig(objectType);
+          fetchPropertiesAndLoadConfig();
           if (
             hasInitialized.current &&
             filtersArray.length > 0 &&
@@ -2375,36 +2328,3 @@ const fetchObjectType = async () => {
 };
  
 export default Extension;
-
-// hubspot.extend(() => <Extension />);
-
-// const Extension = () => {
-//   return (
-//     <>
-//       <Text>
-//         Congrats! You just deployed your first App card. What's next? Here are
-//         some pointers to get you started:
-//       </Text>
-//       <List variant="unordered-styled">
-//         <Link href="https://developers.hubspot.com/docs/platform/ui-components">
-//           📖 Explore our library of UI components
-//         </Link>
-//         <Link href="www.developers.hubspot.com">
-//           📖 Learn more about utilities to help you build better extensions
-//         </Link>
-//         <Link href="github.com/hubspot/ui-extensions-examples">
-//           📖 Get inspired by private app code samples
-//         </Link>
-//          <Link href="https://ecosystem.hubspot.com/marketplace/apps/app-cards">
-//           📖 Look at the Marketplace collection of apps that contain app cards
-//         </Link>
-//         <Link href="https://ecosystem.hubspot.com/marketplace/apps/app-cards">
-//           ▶️ Find resources to learn more
-//         </Link>
-//         <Link href="https://developers.hubspot.com/slack">
-//           ▶️ Connect with developers on #ui-extensions channel on developer Slack community
-//         </Link>
-//       </List>
-//     </>
-//   );
-// };
