@@ -276,7 +276,7 @@ const fetchandapplytemplates = async () => {
 
       // Fetch templates
       const templateFetchResponse = await hubspot.fetch(
-        "https://marqembed.fastgenapp.com/get-templates4",
+        "https://marqembed.fastgenapp.com/fetch-templates4",
         {
           method: "POST",
           headers: {
