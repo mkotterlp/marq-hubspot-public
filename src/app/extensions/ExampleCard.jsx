@@ -33,7 +33,7 @@ hubspot.extend((extensionContext) => {
 
 const Extension = ({ context, actions }) => {
   const [iframeUrl, setIframeUrl] = useState("");
-  const [marquserid, setMarquserid] = useState("");
+  // const [marquserid, setMarquserid] = useState("");
   const [isPolling, setIsPolling] = useState(false);
   const [isAccountPolling, setAccountIsPolling] = useState(false);
   const [loadingTemplateId, setLoadingTemplateId] = useState(null);
@@ -87,6 +87,7 @@ const Extension = ({ context, actions }) => {
   let objectId = "";
   let objectType = "";
   let userid = "";
+  let marquserid = "";
   let userEmail = "";
   let userauthurl = "";
   let accountauthurl = "";
@@ -111,6 +112,7 @@ const Extension = ({ context, actions }) => {
       order: 2,
     },
   ];
+
 
   const initialize = async () => {
 
@@ -142,7 +144,9 @@ const Extension = ({ context, actions }) => {
             // Parse the response body as JSON
             const createusertableResponseBody = await createusertable.json();
             console.log("Response Body:", createusertableResponseBody);
+            marquserid = (createusertableResponseBody?.Data?.row?.values?.marqUserID)
             marquserinitialized = createusertableResponseBody?.Data?.row?.values?.marquserinitialized;
+            
 
             // Take actions based on the value of marquserinitialized
     if (marquserinitialized) {
@@ -250,47 +254,85 @@ const fetchObjectType = async (context) => {
     try {
       setIsLoading(true);
 
-      // Validate that userid is available before proceeding
-      if (!userid) {
+      // Validate that userid and marquserid (marqUserID) are available before proceeding
+      if (!userid ) {
         console.error("Error: Missing user ID.");
         setIsLoading(false);
         return;
       }
 
+      console.log("marquserid in fetchPropertiesAndLoadConfig:", marquserid);
+
       // Fetch user data from the 'marqouathhandler' serverless function
       try {
-        console.log("fetching endpoint fetchusertable... ")
+        console.log("fetching endpoint fetchusertable... ");
         const createusertable = await hubspot.fetch(
-          "https://marqembed.fastgenapp.com/fetchusertable", 
-        {
-          method: "POST",
-          body: {
-            userId: userid
-                }
-        });
+          "https://marqembed.fastgenapp.com/fetchusertable",
+          {
+            method: "POST",
+            body: {
+              userId: userid,
+              marqUserID: marquserid  
+            }
+          }
+        );
 
-        if (createusertable?.response?.body) {
-          const responseBody = JSON.parse(createusertable.response.body);
-          const userData = responseBody.row?.values || {}; // Access values directly from row
-          lastTemplateSyncDate = userData.lastTemplateSyncDate;
-          templateLink = userData.templatesfeed;
-          const marquserid = userData.marqUserID;
-
+        if (createusertable.ok) {
+          const responseBody = await createusertable.json();
+          console.log("responseBody after fetchusertable:", responseBody);
+      
+          let userData = {};
+          if (responseBody?.Data?.Data?.result) {
+              try {
+                  // Clean up the result string: replace single quotes, convert datetime objects to JS Date, and replace None with null
+                  let cleanedResult = responseBody.Data.Data.result
+                      .replace(/'/g, '"')  // Replace single quotes with double quotes
+                      .replace(/datetime\.datetime\((\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*\d+\)/g,
+                               (match, year, month, day, hour, minute, second) => {
+                                   // Create a JS Date object and convert it to a local date string
+                                   const jsDate = new Date(year, month - 1, day, hour, minute, second);
+                                   return `"${jsDate.toLocaleString()}"`;
+                               })
+                      .replace(/datetime\.datetime\((\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)/g,
+                               (match, year, month, day, hour, minute, second) => {
+                                   // Same as above, but for the format without microseconds
+                                   const jsDate = new Date(year, month - 1, day, hour, minute, second);
+                                   return `"${jsDate.toLocaleString()}"`;
+                               })
+                      .replace(/\bNone\b/g, 'null'); // Replace Python None with null for JSON compatibility
+      
+                  console.log("cleanedResult:", cleanedResult);
+      
+                  // Parse the cleaned result string
+                  userData = JSON.parse(cleanedResult).values || {};
+                  console.log("Parsed userData:", userData);
+      
+                  // Extract relevant values
+                  lastTemplateSyncDate = userData.lastTemplateSyncDate;
+                  templateLink = userData.templatesfeed;
+                  marquserid = userData.marqUserID;
+      
+                  console.log("lastTemplateSyncDate:", lastTemplateSyncDate, "templateLink:", templateLink, "marquserid:", marquserid);
+              } catch (err) {
+                  console.error("Error parsing the result field:", err);
+              }
+          } else {
+              console.error("Unexpected response structure:", responseBody);
+          }
+      
           marquserinitialized = userData.marquserinitialized;
-
+                
           // Validate required values before proceeding with further operations
           if (!marquserinitialized || !marquserid) {
             setShowTemplates(false);
             setIsLoading(false);
             return;
           }
-
-          setMarquserid(marquserid);
-
+      
+          // Continue with further processing like calculating time difference
           const currentTime = Date.now();
           const timeDifference = currentTime - lastTemplateSyncDate;
           const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
-
           // Fetch templates if template link is missing
           if (
             (timeDifference > twentyFourHoursInMs && marquserinitialized) ||
@@ -853,6 +895,7 @@ const fetchObjectType = async (context) => {
 
   const fetchAssociatedProjectsAndDetails = useCallback(
     async (objectType) => {
+
       // console.log("Fetching projects");
       if (!context.crm.objectId) {
         console.error("No object ID available to fetch associated projects.");
@@ -885,7 +928,7 @@ const fetchObjectType = async (context) => {
             );
       
             // Second API call to fetch detailed project data
-            const projectDetailsResponse = await fetch("https://marqembed.fastgenapp.com/fetchprojectdetails", {
+            const projectDetailsResponse = await fetch("https://marqembed.fastgenapp.com/fetch-projectdetails", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
