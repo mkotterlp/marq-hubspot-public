@@ -7,6 +7,7 @@
     "https://marqembed.fastgenapp.com",
     "https://marqembed.fastgenapp.com/fetch-object",
     "https://marqembed.fastgenapp.com/get-templates4",
+    "https://marqembed.fastgenapp.com/update-usertable",
     "https://marqembed.fastgenapp.com/marqouathhandler",
     "https://marqembed.fastgenapp.com/hubdb-helper",
     "https://marqembed.fastgenapp.com/fetch-objectproperties",
@@ -17,8 +18,8 @@
     "https://marqembed.fastgenapp.com/fetchusertable",
     "https://marqembed.fastgenapp.com/fetch-projectdetails",
     "https://marqembed.fastgenapp.com/fetch-accounttable",
-    "https://marqembed.fastgenapp.com/update-dataset",
-    "https://marqembed.fastgenapp.com/datatablehandler"
+    "https://marqembed.fastgenapp.com/datatablehandler2",
+    "https://marqembed.fastgenapp.com/create-auth-url"
     ],
   "logo": "./Marq_Q_Logo.png",
   "advancedScopeSettingsEnabled": true,
