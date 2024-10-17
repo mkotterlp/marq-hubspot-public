@@ -6,7 +6,7 @@
     "https://api.hubapi.com",
     "https://marqembed.fastgenapp.com",
     "https://marqembed.fastgenapp.com/fetch-object",
-    "https://marqembed.fastgenapp.com/fetch-templates4",
+    "https://marqembed.fastgenapp.com/fetch-marq-templates",
     "https://marqembed.fastgenapp.com/update-usertable",
     "https://marqembed.fastgenapp.com/marq-ouath-handler",
     "https://marqembed.fastgenapp.com/hubdb-helper",

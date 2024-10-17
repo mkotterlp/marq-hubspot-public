@@ -264,19 +264,21 @@ const fetchObjectType = async () => {
 
 
 const fetchandapplytemplates = async () => {
-  try {
-    const currentTime = Date.now();
-    const timeDifference = currentTime - lasttemplatesyncdate;
-    const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
-    if (
-      (timeDifference > twentyFourHoursInMs && marquserinitialized) ||
-      (!templatesfeed && marquserinitialized)
-    ) {
-      setIsLoading(true);
 
+  const currentTime = Date.now();
+  const timeDifference = currentTime - lasttemplatesyncdate;
+  const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
+  
+  if (
+    (timeDifference > twentyFourHoursInMs && marquserinitialized) ||
+    (!templatesfeed && marquserinitialized)
+  ) {
+    try {
+      setIsLoading(true); // Add await if setIsLoading is async
+  
       // Fetch templates
       const templateFetchResponse = await hubspot.fetch(
-        "https://marqembed.fastgenapp.com/fetch-templates4",
+        "https://marqembed.fastgenapp.com/fetch-marq-templates",
         {
           method: "POST",
           headers: {
@@ -285,13 +287,13 @@ const fetchandapplytemplates = async () => {
           body: {}, 
         }
       );
-
+  
       if (templateFetchResponse.ok) {
         const templateFetchResponseBody = await templateFetchResponse.json();
-
+  
         // Accessing the objectType within the body -> Data -> body
         templatesfeed = templateFetchResponseBody.Data?.body?.templatesfeed;
-
+  
         if (templatesfeed) {
           console.log("templatesfeed:", templatesfeed);
         } else {
@@ -300,75 +302,80 @@ const fetchandapplytemplates = async () => {
       } else {
         console.error("Error fetching templatesfeed:", templateFetchResponse);
       }
+    } catch (error) {
+      console.error("Error fetching templates:", error);
     }
+  } 
 
-    if (templatesfeed) {
-      console.log("Applying templates");
-      const applytemplatesResponse = await hubspot.fetch(
-        "https://marqembed.fastgenapp.com/fetch-jsondata",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: {
-            templateLink: templatesfeed,
-          },
-        }
-      );
-
-      if (applytemplatesResponse.ok) {
-        const applytemplatesResponseBody = await applytemplatesResponse.json();
-        const fetchedTemplates = applytemplatesResponseBody.Data;
-        setfullTemplates(fetchedTemplates);
-
-        if (fetchedTemplates) {
-          console.log("fetchedTemplates:", fetchedTemplates);
-
-          if (
-            fields.length &&
-            filters.length &&
-            Object.keys(propertiesBody).length > 0
-          ) {
-            const filtered = fetchedTemplates.filter((template) => {
-              return fields.every((field, index) => {
-                const categoryName = filters[index];
-                const propertyValue = propertiesBody[field]?.toLowerCase();
-                const category = template.categories.find(
-                  (c) =>
-                    c.category_name.toLowerCase() ===
-                    categoryName.toLowerCase()
-                );
-                return (
-                  category &&
-                  category.values
-                    .map((v) => v.toLowerCase())
-                    .includes(propertyValue)
-                );
-              });
+  if (templatesfeed) {
+    console.log("Applying templates");
+    const applytemplatesResponse = await hubspot.fetch(
+      "https://marqembed.fastgenapp.com/fetch-jsondata",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          templateLink: templatesfeed,
+        }),
+      }
+    );
+  
+    if (applytemplatesResponse.ok) {
+      const applytemplatesResponseBody = await applytemplatesResponse.json();
+      const fetchedTemplates = applytemplatesResponseBody.Data;
+      setfullTemplates(fetchedTemplates);
+  
+      if (fetchedTemplates) {
+        console.log("fetchedTemplates:", fetchedTemplates);
+  
+        if (
+          fields.length &&
+          filters.length &&
+          Object.keys(propertiesBody).length > 0
+        ) {
+          const filtered = fetchedTemplates.filter((template) => {
+            return fields.every((field, index) => {
+              const categoryName = filters[index];
+              const propertyValue = propertiesBody[field]?.toLowerCase();
+              const category = template.categories.find(
+                (c) =>
+                  c.category_name.toLowerCase() === categoryName.toLowerCase()
+              );
+              return (
+                category &&
+                category.values
+                  .map((v) => v.toLowerCase())
+                  .includes(propertyValue)
+              );
             });
-
-            setTemplates(filtered.length > 0 ? filtered : fetchedTemplates);
-            setFilteredTemplates(filtered.length > 0 ? filtered : fetchedTemplates);
-            setInitialFilteredTemplates(filtered.length > 0 ? filtered : fetchedTemplates);
-          } else {
-            console.warn("Missing data for filtering. Showing all templates.");
-            setTemplates(fetchedTemplates);
-            setFilteredTemplates(fetchedTemplates);
-            setInitialFilteredTemplates(fetchedTemplates);
-          }
+          });
+  
+          setTemplates(filtered.length > 0 ? filtered : fetchedTemplates);
+          setFilteredTemplates(filtered.length > 0 ? filtered : fetchedTemplates);
+          setInitialFilteredTemplates(
+            filtered.length > 0 ? filtered : fetchedTemplates
+          );
         } else {
-          console.error("Unable to apply templates");
+          console.warn("Missing data for filtering. Showing all templates.");
+          setTemplates(fetchedTemplates);
+          setFilteredTemplates(fetchedTemplates);
+          setInitialFilteredTemplates(fetchedTemplates);
         }
       } else {
-        console.error("Error with applying templates:", applytemplatesResponse);
+        console.error("Unable to apply templates");
       }
+    } else {
+      console.error("Error with applying templates:", applytemplatesResponse);
     }
-  } catch (error) {
-    console.error("Error fetching/applying templates:", error);
-  } finally {
-    setIsLoading(false); // Stop loading regardless of success or error
   }
+  
+  setIsLoading(false); // Stop loading regardless of success or error
+  
+  
+
+ 
 };
 
 
