@@ -259,6 +259,7 @@ const fetchObjectType = async (context) => {
 
       // Fetch user data from the 'marqouathhandler' serverless function
       try {
+        console.log("fetching endpoint fetchusertable... ")
         const createusertable = await hubspot.fetch(
           "https://marqembed.fastgenapp.com/fetchusertable", 
         {
