@@ -265,6 +265,9 @@ const fetchObjectType = async () => {
 
 const fetchandapplytemplates = async () => {
   try {
+    const currentTime = Date.now();
+    const timeDifference = currentTime - lasttemplatesyncdate;
+    const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
     if (
       (timeDifference > twentyFourHoursInMs && marquserinitialized) ||
       (!templatesfeed && marquserinitialized)
@@ -273,13 +276,13 @@ const fetchandapplytemplates = async () => {
 
       // Fetch templates
       const templateFetchResponse = await hubspot.fetch(
-        "https://marqembed.fastgenapp.com/fetch-templates",
+        "https://marqembed.fastgenapp.com/get-templates4",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({}), // Empty body for POST request
+          body: {}, 
         }
       );
 
