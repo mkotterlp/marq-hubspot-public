@@ -85,11 +85,10 @@ const Extension = ({ context, actions }) => {
   const hasSyncedOnceRef = useRef(false);
 
   let objectId = "";
+  let objectTypeId = "";
   let objectType = "";
   let userid = "";
   let userEmail = "";
-  let userauthurl = "";
-  let accountauthurl = "";
   let marquserinitialized = false;
   let marqaccountinitialized = false;
   let hubid = "";
@@ -134,34 +133,56 @@ const Extension = ({ context, actions }) => {
             {
                 method: "POST",
                 body: {
+                  objectTypeId: objectTypeId
                 }
             }
         );
         
         if (marqlookup.ok) {
             // Parse the response body as JSON
-            const marqlookupResponseBody = await createusertable.json();
-            console.log("Response Body:", marqlookupResponseBody);
+            const marqlookupResponseBody = await marqlookup.json();
+            const accounttableresult = marqlookupResponseBody.accounttableresult;
+            const usertableresult = marqlookupResponseBody.usertableresult;
+            const datatableresult = marqlookupResponseBody.datatableresult;
+
+            console.log("usertableresult:", usertableresult);
+            console.log("accounttableresult:", accounttableresult);
+            console.log("datatableresult:", datatableresult);
 
             // Take actions based on the value of marquserinitialized
-    if (marquserinitialized) {
+    if (usertableresult) {
       console.log("User is initialized. Showing templates...");
       setShowTemplates(true);  // Trigger to show templates
-      console.log("Fetching properties and loading config...");
       fetchPropertiesAndLoadConfig(objectType);
-      console.log("Fetching associated projects and details...");
-      fetchAssociatedProjectsAndDetails(objectType);
-      await fetchMarqAccountData();  // Fetch account data if needed
+      // fetchAssociatedProjectsAndDetails(objectType);
   } else {
       console.log("User is not initialized. Hiding templates...");
       setIsLoading(false);
       setShowMarqUserButton(true);
       setShowTemplates(false);  // Hide templates or take other actions
   } 
+
+  if (accounttableresult) {
+    console.log("Account is initialized.");
+
+    if (datatableresult) {
+      console.log("Data is initialized.");
+      await fetchMarqAccountData();  // Fetch account data if needed
+  } else {
+      console.log("Data is not initialized");
+  } 
+
+} else {
+    console.log("Account is not initialized. Showing account button...");
+    setIsLoading(false);
+    setShowMarqAccountButton(true);
+} 
+
+
         
         } else {
             // Log the status and status text for error debugging
-            console.error(`Error fetching user table: ${createusertable.status} - ${createusertable.statusText}`);
+            console.error(`Error fetching user table: ${marqlookup.status} - ${marqlookup.statusText}`);
         }
         
         } catch (error) {
@@ -184,17 +205,14 @@ const Extension = ({ context, actions }) => {
 useEffect(() => {
   if (context) {
     console.log("Context:", context); 
-    
     const fetchData = async () => {
-      await fetchObjectType(context);
       objectId = context.crm.objectId;
+      objectTypeId = context.crm.objectTypeId;
       hubid = context.portal.id;
       userid = context.user.id;
-      userEmail = context.user.email;
+      await fetchObjectType();
       initialize();
     };
-
-    // Call the async function
     fetchData();
   } else {
     console.log("Context is not available yet.");
@@ -202,21 +220,18 @@ useEffect(() => {
 }, [context]);
 
 
-const fetchObjectType = async (context) => {
+const fetchObjectType = async () => {
   try {
     if (!context) {
       throw new Error("Context is undefined.");
     }
-
-    // Check if CRM data exists in the context
-    if (context.crm && context.crm.objectTypeId) {
 
       const objectTypeResponse = await hubspot.fetch(
         "https://marqembed.fastgenapp.com/fetch-object",
         {
           method: "POST",
           body: {
-            objectTypeId: context.crm.objectTypeId,
+            objectTypeId: objectTypeId,
             userId: userid, 
           },
         }
@@ -236,9 +251,6 @@ const fetchObjectType = async (context) => {
       } else {
         console.error("Error fetching object type:", objectTypeResponse);
       }
-    } else {
-      throw new Error("CRM data or objectTypeId is missing in context.");
-    }
   } catch (error) {
     console.error("Error fetching object type:", error);
   }
@@ -535,7 +547,7 @@ const fetchObjectType = async (context) => {
               objectTypeFieldsMap[objectType].push(field);
             } else if (parts.length === 1) {
               // Handle fields without an explicit objectType
-              const defaultObjectType = context.crm.objectTypeId; // Get the default objectType from context
+              const defaultObjectType = objectTypeId;
               const field = parts[0];
               if (!objectTypeFieldsMap[defaultObjectType]) {
                 objectTypeFieldsMap[defaultObjectType] = [];
