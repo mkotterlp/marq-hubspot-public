@@ -88,10 +88,11 @@ const Extension = ({ context, actions }) => {
   let objectTypeId = "";
   let objectType = "";
   let userid = "";
-  let userEmail = "";
+  let hubid = "";
+  let lasttemplatesyncdate = "";
+  let templatesfeed = "";
   let marquserinitialized = false;
   let marqaccountinitialized = false;
-  let hubid = "";
   let paginatedTemplates = [];
   let propertiesBody = {};
   let configData = {};
@@ -99,7 +100,6 @@ const Extension = ({ context, actions }) => {
   let marqAccountId = "";
   let collectionid = "";
   let datasetid = "";
-  let lastTemplateSyncDate;
   let accountResponseBody = {};
   let schema = [
     { name: "Id", fieldType: "STRING", isPrimary: true, order: 1 },
@@ -152,8 +152,13 @@ const Extension = ({ context, actions }) => {
             // Take actions based on the value of marquserinitialized
     if (usertableresult) {
       console.log("User is initialized. Showing templates...");
+
+      lasttemplatesyncdate = usertableresult.lasttemplatesyncdate ?? null;
+      templatesfeed = usertableresult.templatesfeed ?? null;
+      marquserinitialized = true;
+
       setShowTemplates(true);  // Trigger to show templates
-      fetchPropertiesAndLoadConfig();
+      fetchandapplytemplates();
       // fetchAssociatedProjectsAndDetails(objectType);
   } else {
       console.log("User is not initialized. Hiding templates...");
@@ -164,6 +169,7 @@ const Extension = ({ context, actions }) => {
 
   if (accounttableresult) {
     console.log("Account is initialized.");
+    marqaccountinitialized = true;
 
     if (datatableresult) {
       console.log("Data is initialized.");
@@ -257,464 +263,361 @@ const fetchObjectType = async () => {
 };
 
 
-  const fetchPropertiesAndLoadConfig = async () => {
-    try {
+const fetchandapplytemplates = async () => {
+  try {
+    if (
+      (timeDifference > twentyFourHoursInMs && marquserinitialized) ||
+      (!templatesfeed && marquserinitialized)
+    ) {
       setIsLoading(true);
 
-      // Validate that userid is available before proceeding
-      if (!userid) {
-        console.error("Error: Missing user ID.");
-        setIsLoading(false);
-        return;
+      // Fetch templates
+      const templateFetchResponse = await hubspot.fetch(
+        "https://marqembed.fastgenapp.com/fetch-templates",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}), // Empty body for POST request
+        }
+      );
+
+      if (templateFetchResponse.ok) {
+        const templateFetchResponseBody = await templateFetchResponse.json();
+
+        // Accessing the objectType within the body -> Data -> body
+        templatesfeed = templateFetchResponseBody.Data?.body?.templatesfeed;
+
+        if (templatesfeed) {
+          console.log("templatesfeed:", templatesfeed);
+        } else {
+          console.error("templatesfeed not found in response.");
+        }
+      } else {
+        console.error("Error fetching templatesfeed:", templateFetchResponse);
       }
+    }
 
+    if (templatesfeed) {
+      console.log("Applying templates");
+      const applytemplatesResponse = await hubspot.fetch(
+        "https://marqembed.fastgenapp.com/fetch-jsondata",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: {
+            templateLink: templatesfeed,
+          },
+        }
+      );
 
-          const currentTime = Date.now();
-          const timeDifference = currentTime - lastTemplateSyncDate;
-          const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
+      if (applytemplatesResponse.ok) {
+        const applytemplatesResponseBody = await applytemplatesResponse.json();
+        const fetchedTemplates = applytemplatesResponseBody.Data;
+        setfullTemplates(fetchedTemplates);
 
-          // Fetch templates if template link is missing
+        if (fetchedTemplates) {
+          console.log("fetchedTemplates:", fetchedTemplates);
+
           if (
-            (timeDifference > twentyFourHoursInMs && marquserinitialized) ||
-            (!templateLink && marquserinitialized)
+            fields.length &&
+            filters.length &&
+            Object.keys(propertiesBody).length > 0
           ) {
-            try {
-
-              const params = new URLSearchParams({
-                marquserid: marquserid,
+            const filtered = fetchedTemplates.filter((template) => {
+              return fields.every((field, index) => {
+                const categoryName = filters[index];
+                const propertyValue = propertiesBody[field]?.toLowerCase();
+                const category = template.categories.find(
+                  (c) =>
+                    c.category_name.toLowerCase() ===
+                    categoryName.toLowerCase()
+                );
+                return (
+                  category &&
+                  category.values
+                    .map((v) => v.toLowerCase())
+                    .includes(propertyValue)
+                );
               });
-              
-              const fetchResult = await hubspot.fetch(
-                `https://marqembed.fastgenapp.com/get-templates4?${params.toString()}`,
-                {
-                  method: "GET"
-                }
-              );
+            });
 
-
-              // Log the full response object
-
-              if (fetchResult && fetchResult.response) {
-                console.log('fetchResult:', fetchResult);
-                console.log('fetchResult.response:', fetchResult.response);
-
-                const statusCode = fetchResult.response.statusCode;
-
-                if (statusCode === 200 && fetchResult.response.body) {
-                  try {
-                    const fetchedData = JSON.parse(fetchResult.response.body);
-
-                    // Check if the required data is present
-                    if (
-                      fetchedData.templatesjsonurl
-                    ) {
-                      templateLink = fetchedData.templatesjsonurl;
-                    } else {
-                      console.error(
-                        "Error: Missing expected data in response body.",
-                        fetchedData
-                      );
-                      templateLink = "";
-                    }
-                  } catch (jsonError) {
-                    console.error(
-                      "Error parsing JSON response:",
-                      jsonError,
-                      fetchResult.response.body
-                    );
-                    templateLink = "";
-                  }
-                } else {
-                  // Handle non-200 status codes
-                  console.error(
-                    "Failed to fetch new template link. Status Code:",
-                    statusCode,
-                    "Response body:",
-                    fetchResult.response.body
-                  );
-                  templateLink = "";
-                }
-              } else {
-                // Handle missing response
-                console.error(
-                  "Error: fetchResult or response is undefined or malformed.",
-                  fetchResult
-                );
-                templateLink = "";
-              }
-
-              try {
-                // Call the serverless function to update the user table
-                const updateResult = await hubspot.fetch(
-                  "https://marqembed.fastgenapp.com/update-user-table", 
-                {
-                  method: "POST",
-                  body: {
-                    userId: userid,
-                    templatesJsonUrl: templateLink
-                  },
-                });
-                
-
-                // Parse the response
-                if (updateResult.statusCode === 200) {
-                  setResponseMessage(
-                    "User data updated successfully!"
-                  );
-                } else if (updateResult.statusCode === 400) {
-                  console.error(
-                    "Invalid request parameters:",
-                    updateResult.body
-                  );
-                  setResponseMessage(
-                    "Invalid request. Please check the input parameters."
-                  );
-                } else if (updateResult.statusCode === 500) {
-                  console.error("Internal server error:", updateResult.body);
-                  setResponseMessage(
-                    "Server error while updating user data. Please try again later."
-                  );
-                } else {
-                  console.error("Unexpected response:", updateResult);
-                  setResponseMessage(
-                    "An unexpected error occurred. Please try again later."
-                  );
-                }
-              } catch (updateError) {
-                console.error(
-                  "Error occurred while trying to update user table:",
-                  updateError
-                );
-                setResponseMessage(
-                  "A network or server error occurred. Please try again later."
-                );
-              } finally {
-              }
-            } catch (fetchError) {
-              console.error(
-                "Error occurred while fetching new template link:",
-                fetchError
-              );
-            }
-          }
-
-
-
-      // Fetch config data from 'hubdbHelper'
-      try {
-
-        const configDataResponse = await hubspot.fetch(
-          "https://marqembed.fastgenapp.com/hubdb-helper",
-          {
-            method: "POST",
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              objectType: objectType,
-              userId: userid,
-            }),
-          }
-        );
-        
-
-        if (configDataResponse?.response?.body) {
-          configData =
-            JSON.parse(configDataResponse.response.body).values || {};
-          const fields =
-            configData.textboxFields?.split(",").map((field) => field.trim()) ||
-            [];
-          const filters =
-            configData.textboxFilters
-              ?.split(",")
-              .map((filter) => filter.trim()) || [];
-          const dataFields =
-            configData.dataFields?.split(",").map((field) => field.trim()) ||
-            [];
-          setFieldsArray(fields);
-          setFiltersArray(filters);
-          setDataArray(dataFields);
-
-          // Log dataFields for debugging
-          console.log("Pulled dataFields:", dataFields);
-
-          const propertiesToWatch = configData.textboxFields
-            ? configData.textboxFields.split(",").map((field) => field.trim())
-            : [];
-          setpropertiesToWatch(propertiesToWatch);
-
-          // Fetch CRM properties if fields are available
-          if (fields.length > 0) {
-            try {
-
-              const propertiesResponse = await fetch(
-                "https://marqembed.fastgenapp.com/get-object-properties", 
-              {
-                method: "POST", // Ensure you use the correct HTTP method, assuming POST
-                headers: {
-                  "Content-Type": "application/json"
-                },
-                body: {
-                  objectId: context.crm.objectId,
-                  objectType: objectType,
-                  properties: fields,
-                  userId: userid // Include userId in the parameters
-                }
-              });
-
-              if (propertiesResponse?.response?.body) {
-                propertiesBody =
-                  JSON.parse(propertiesResponse.response.body)
-                    .mappedProperties || {};
-                console.log("Fetched CRM Properties:", propertiesBody);
-                if (objectType === "DEAL") {
-                  setStage(propertiesBody.dealstage);
-                }
-              } else {
-                console.error(
-                  "Failed to fetch CRM properties:",
-                  propertiesResponse
-                );
-              }
-            } catch (propertiesError) {
-              console.error(
-                "Error occurred while fetching CRM properties:",
-                propertiesError
-              );
-            }
-          }
-
-          // Group dynamic fields by their object types (parsed from dataFields)
-          const objectTypeFieldsMap = {};
-
-          // Dynamically group dataFields by their object types (e.g., deal, contact, etc.)
-          dataFields.forEach((dataField) => {
-            const parts = dataField.split("."); // Split the dataField
-            if (parts.length === 2) {
-              const [objectType, field] = parts;
-              if (!objectTypeFieldsMap[objectType]) {
-                objectTypeFieldsMap[objectType] = [];
-              }
-              objectTypeFieldsMap[objectType].push(field);
-            } else if (parts.length === 1) {
-              // Handle fields without an explicit objectType
-              const defaultObjectType = objectTypeId;
-              const field = parts[0];
-              if (!objectTypeFieldsMap[defaultObjectType]) {
-                objectTypeFieldsMap[defaultObjectType] = [];
-              }
-              objectTypeFieldsMap[defaultObjectType].push(field);
-            } else {
-              console.error(`Invalid dataField format: ${dataField}`);
-            }
-          });
-
-          for (const [objectType, fieldsForObject] of Object.entries(
-            objectTypeFieldsMap
-          )) {
-            try {
-
-              const dynamicpropertiesResponse = await fetch("https://marqembed.fastgenapp.com/get-object-properties", {
-                method: "POST", // Ensure the request method matches the expected method for the endpoint
-                headers: {
-                  "Content-Type": "application/json"
-                },
-                body: {
-                  objectId: context.crm.objectId,
-                  objectType: objectType,
-                  properties: fields,
-                  userId: userid // Include userId in the parameters
-                }
-              });
-
-              if (dynamicpropertiesResponse?.response?.body) {
-                const responseBody = JSON.parse(
-                  dynamicpropertiesResponse.response.body
-                );
-                const dynamicpropertiesBody =
-                  responseBody.mappedProperties || {};
-
-                console.log(
-                  `Fetched properties for dynamic objectType (${objectType}):`,
-                  dynamicpropertiesBody
-                );
-
-                let mappeddynamicproperties = {};
-
-                // Iterate over dataFields and map to mappeddynamicproperties
-                dataFields.forEach((dataField) => {
-                  const parts = dataField.split("."); // e.g., 'deal.dealstage'
-
-                  // Only update fields with the correct prefix (e.g., deal.amount for deal objectType)
-                  if (parts.length === 2 && parts[0] === objectType) {
-                    const [objectTypePrefix, field] = parts;
-                    const fieldValue = dynamicpropertiesBody[field]; // Get the value for the field
-                    if (fieldValue !== null && fieldValue !== "") {
-                      mappeddynamicproperties[dataField] = fieldValue; // Only map if value is non-empty
-                    }
-                  } else if (parts.length === 1) {
-                    // Handle fields without an explicit objectType (using default)
-                    const field = parts[0];
-                    const fieldValue = dynamicpropertiesBody[field]; // Get the value for the field
-                    if (fieldValue !== null && fieldValue !== "") {
-                      mappeddynamicproperties[dataField] = fieldValue; // Only map if value is non-empty
-                    }
-                  }
-                });
-
-                // Merge new properties with the existing ones, but only overwrite if non-empty
-                setDynamicProperties((prevProperties) => ({
-                  ...prevProperties,
-                  ...mappeddynamicproperties,
-                }));
-
-                console.log(
-                  "Mapped Dynamic Properties after fetching:",
-                  mappeddynamicproperties
-                );
-              } else {
-                console.error(
-                  `Failed to fetch properties for dynamic objectType (${objectType})`,
-                  dynamicpropertiesResponse
-                );
-              }
-            } catch (error) {
-              console.error(
-                `Error fetching properties for dynamic objectType (${objectType}):`,
-                error
-              );
-            }
-          }
-
-          try {
-            // Check if the object is a 'deal'
-            console.log("Starting deal check for lineItems:");
-            if (objectType === "DEAL") {
-              // Make your API call to fetch associated line items for the deal
-
-              const lineItemsResponse = await fetch('https://marqembed.fastgenapp.com/fetch-line-items', {
-                method: 'POST', // Assuming POST based on the nature of the operation, adjust if needed
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: {
-                  dealId: context.crm.objectId, // Include dealId in the body
-                  userId: userid // Include userId in the body as well
-                },
-              });
-
-              // Parse the response and return the line items
-              const lineItems = JSON.parse(lineItemsResponse.response.body);
-              console.log("lineItems:", lineItems);
-
-              setLineitemProperties(lineItems);
-            } else {
-              console.log(
-                "Object type is not a deal, skipping line item fetch."
-              );
-            }
-          } catch (error) {
-            console.error("Error fetching line items:", error);
-          }
-
-          // Fetch templates from 'fetchJsonData'
-          if (templateLink) {
-            console.log("Applying templates");
-            try {
-              const templatesResponse = await hubspot.fetch("https://marqembed.fastgenapp.com/fetchjsondata", {
-                method: "POST",
-                body: JSON.stringify({
-                  templateLink: templateLink, // Ensure templateLink is passed correctly
-                }),
-              });
-              
-
-              if (templatesResponse?.response?.body) {
-                const data = JSON.parse(templatesResponse.response.body);
-                const fetchedTemplates = data.templatesresponse || [];
-                setfullTemplates(fetchedTemplates);
-
-                if (
-                  fields.length &&
-                  filters.length &&
-                  Object.keys(propertiesBody).length > 0
-                ) {
-                  const filtered = fetchedTemplates.filter((template) => {
-                    return fields.every((field, index) => {
-                      const categoryName = filters[index];
-                      const propertyValue =
-                        propertiesBody[field]?.toLowerCase();
-                      const category = template.categories.find(
-                        (c) =>
-                          c.category_name.toLowerCase() ===
-                          categoryName.toLowerCase()
-                      );
-                      return (
-                        category &&
-                        category.values
-                          .map((v) => v.toLowerCase())
-                          .includes(propertyValue)
-                      );
-                    });
-                  });
-                  setTemplates(
-                    filtered.length > 0 ? filtered : fetchedTemplates
-                  );
-                  setFilteredTemplates(
-                    filtered.length > 0 ? filtered : fetchedTemplates
-                  );
-                  setInitialFilteredTemplates(
-                    filtered.length > 0 ? filtered : fetchedTemplates
-                  );
-                  setIsLoading(false);
-                } else {
-                  console.warn(
-                    "Missing data for filtering. Showing all templates."
-                  );
-                  setTemplates(fetchedTemplates);
-                  setFilteredTemplates(fetchedTemplates);
-                  setInitialFilteredTemplates(fetchedTemplates);
-
-                  setIsLoading(false);
-                }
-              } else {
-                console.error("Error fetching templates:", templatesResponse);
-              }
-            } catch (templatesError) {
-              console.error(
-                "Error occurred while fetching templates:",
-                templatesError
-              );
-            }
+            setTemplates(filtered.length > 0 ? filtered : fetchedTemplates);
+            setFilteredTemplates(filtered.length > 0 ? filtered : fetchedTemplates);
+            setInitialFilteredTemplates(filtered.length > 0 ? filtered : fetchedTemplates);
           } else {
-            console.error("Error: Missing template link to fetch templates.");
-
-            if (marquserinitialized) {
-              setShowTemplates(true);
-              setIsLoading(false);
-            } else {
-              setShowTemplates(false);
-              setIsLoading(false);
-              actions.addAlert({
-                title: "Error with template sync",
-                variant: "danger",
-                message: `There was an error fetching templates. Please try connecting to Marq again`,
-              });
-            }
+            console.warn("Missing data for filtering. Showing all templates.");
+            setTemplates(fetchedTemplates);
+            setFilteredTemplates(fetchedTemplates);
+            setInitialFilteredTemplates(fetchedTemplates);
           }
         } else {
-          console.error("Failed to load config data:", configDataResponse);
+          console.error("Unable to apply templates");
         }
-      } catch (configError) {
-        console.error(
-          "Error occurred while fetching config data:",
-          configError
-        );
+      } else {
+        console.error("Error with applying templates:", applytemplatesResponse);
       }
-    } catch (error) {
-      console.error("Error in fetchConfigCrmPropertiesAndTemplates:", error);
     }
-  };
+  } catch (error) {
+    console.error("Error fetching/applying templates:", error);
+  } finally {
+    setIsLoading(false); // Stop loading regardless of success or error
+  }
+};
+
+
+
+
+      // // Fetch config data from 'hubdbHelper'
+      // try {
+
+      //   const configDataResponse = await hubspot.fetch(
+      //     "https://marqembed.fastgenapp.com/hubdb-helper",
+      //     {
+      //       method: "POST",
+      //       headers: {
+      //         'Content-Type': 'application/json',
+      //       },
+      //       body: JSON.stringify({
+      //         objectType: objectType,
+      //         userId: userid,
+      //       }),
+      //     }
+      //   );
+        
+
+      //   if (configDataResponse?.response?.body) {
+      //     configData =
+      //       JSON.parse(configDataResponse.response.body).values || {};
+      //     const fields =
+      //       configData.textboxFields?.split(",").map((field) => field.trim()) ||
+      //       [];
+      //     const filters =
+      //       configData.textboxFilters
+      //         ?.split(",")
+      //         .map((filter) => filter.trim()) || [];
+      //     const dataFields =
+      //       configData.dataFields?.split(",").map((field) => field.trim()) ||
+      //       [];
+      //     setFieldsArray(fields);
+      //     setFiltersArray(filters);
+      //     setDataArray(dataFields);
+
+      //     // Log dataFields for debugging
+      //     console.log("Pulled dataFields:", dataFields);
+
+      //     const propertiesToWatch = configData.textboxFields
+      //       ? configData.textboxFields.split(",").map((field) => field.trim())
+      //       : [];
+      //     setpropertiesToWatch(propertiesToWatch);
+
+      //     // Fetch CRM properties if fields are available
+      //     if (fields.length > 0) {
+      //       try {
+
+      //         const propertiesResponse = await fetch(
+      //           "https://marqembed.fastgenapp.com/get-object-properties", 
+      //         {
+      //           method: "POST", // Ensure you use the correct HTTP method, assuming POST
+      //           headers: {
+      //             "Content-Type": "application/json"
+      //           },
+      //           body: {
+      //             objectId: context.crm.objectId,
+      //             objectType: objectType,
+      //             properties: fields,
+      //             userId: userid // Include userId in the parameters
+      //           }
+      //         });
+
+      //         if (propertiesResponse?.response?.body) {
+      //           propertiesBody =
+      //             JSON.parse(propertiesResponse.response.body)
+      //               .mappedProperties || {};
+      //           console.log("Fetched CRM Properties:", propertiesBody);
+      //           if (objectType === "DEAL") {
+      //             setStage(propertiesBody.dealstage);
+      //           }
+      //         } else {
+      //           console.error(
+      //             "Failed to fetch CRM properties:",
+      //             propertiesResponse
+      //           );
+      //         }
+      //       } catch (propertiesError) {
+      //         console.error(
+      //           "Error occurred while fetching CRM properties:",
+      //           propertiesError
+      //         );
+      //       }
+      //     }
+
+      //     // Group dynamic fields by their object types (parsed from dataFields)
+      //     const objectTypeFieldsMap = {};
+
+      //     // Dynamically group dataFields by their object types (e.g., deal, contact, etc.)
+      //     dataFields.forEach((dataField) => {
+      //       const parts = dataField.split("."); // Split the dataField
+      //       if (parts.length === 2) {
+      //         const [objectType, field] = parts;
+      //         if (!objectTypeFieldsMap[objectType]) {
+      //           objectTypeFieldsMap[objectType] = [];
+      //         }
+      //         objectTypeFieldsMap[objectType].push(field);
+      //       } else if (parts.length === 1) {
+      //         // Handle fields without an explicit objectType
+      //         const defaultObjectType = objectTypeId;
+      //         const field = parts[0];
+      //         if (!objectTypeFieldsMap[defaultObjectType]) {
+      //           objectTypeFieldsMap[defaultObjectType] = [];
+      //         }
+      //         objectTypeFieldsMap[defaultObjectType].push(field);
+      //       } else {
+      //         console.error(`Invalid dataField format: ${dataField}`);
+      //       }
+      //     });
+
+      //     for (const [objectType, fieldsForObject] of Object.entries(
+      //       objectTypeFieldsMap
+      //     )) {
+      //       try {
+
+      //         const dynamicpropertiesResponse = await fetch("https://marqembed.fastgenapp.com/get-object-properties", {
+      //           method: "POST", // Ensure the request method matches the expected method for the endpoint
+      //           headers: {
+      //             "Content-Type": "application/json"
+      //           },
+      //           body: {
+      //             objectId: context.crm.objectId,
+      //             objectType: objectType,
+      //             properties: fields,
+      //             userId: userid // Include userId in the parameters
+      //           }
+      //         });
+
+      //         if (dynamicpropertiesResponse?.response?.body) {
+      //           const responseBody = JSON.parse(
+      //             dynamicpropertiesResponse.response.body
+      //           );
+      //           const dynamicpropertiesBody =
+      //             responseBody.mappedProperties || {};
+
+      //           console.log(
+      //             `Fetched properties for dynamic objectType (${objectType}):`,
+      //             dynamicpropertiesBody
+      //           );
+
+      //           let mappeddynamicproperties = {};
+
+      //           // Iterate over dataFields and map to mappeddynamicproperties
+      //           dataFields.forEach((dataField) => {
+      //             const parts = dataField.split("."); // e.g., 'deal.dealstage'
+
+      //             // Only update fields with the correct prefix (e.g., deal.amount for deal objectType)
+      //             if (parts.length === 2 && parts[0] === objectType) {
+      //               const [objectTypePrefix, field] = parts;
+      //               const fieldValue = dynamicpropertiesBody[field]; // Get the value for the field
+      //               if (fieldValue !== null && fieldValue !== "") {
+      //                 mappeddynamicproperties[dataField] = fieldValue; // Only map if value is non-empty
+      //               }
+      //             } else if (parts.length === 1) {
+      //               // Handle fields without an explicit objectType (using default)
+      //               const field = parts[0];
+      //               const fieldValue = dynamicpropertiesBody[field]; // Get the value for the field
+      //               if (fieldValue !== null && fieldValue !== "") {
+      //                 mappeddynamicproperties[dataField] = fieldValue; // Only map if value is non-empty
+      //               }
+      //             }
+      //           });
+
+      //           // Merge new properties with the existing ones, but only overwrite if non-empty
+      //           setDynamicProperties((prevProperties) => ({
+      //             ...prevProperties,
+      //             ...mappeddynamicproperties,
+      //           }));
+
+      //           console.log(
+      //             "Mapped Dynamic Properties after fetching:",
+      //             mappeddynamicproperties
+      //           );
+      //         } else {
+      //           console.error(
+      //             `Failed to fetch properties for dynamic objectType (${objectType})`,
+      //             dynamicpropertiesResponse
+      //           );
+      //         }
+      //       } catch (error) {
+      //         console.error(
+      //           `Error fetching properties for dynamic objectType (${objectType}):`,
+      //           error
+      //         );
+      //       }
+      //     }
+
+      //     try {
+      //       // Check if the object is a 'deal'
+      //       console.log("Starting deal check for lineItems:");
+      //       if (objectType === "DEAL") {
+      //         // Make your API call to fetch associated line items for the deal
+
+      //         const lineItemsResponse = await fetch('https://marqembed.fastgenapp.com/fetch-line-items', {
+      //           method: 'POST', // Assuming POST based on the nature of the operation, adjust if needed
+      //           headers: {
+      //             'Content-Type': 'application/json',
+      //           },
+      //           body: {
+      //             dealId: context.crm.objectId, // Include dealId in the body
+      //             userId: userid // Include userId in the body as well
+      //           },
+      //         });
+
+      //         // Parse the response and return the line items
+      //         const lineItems = JSON.parse(lineItemsResponse.response.body);
+      //         console.log("lineItems:", lineItems);
+
+      //         setLineitemProperties(lineItems);
+      //       } else {
+      //         console.log(
+      //           "Object type is not a deal, skipping line item fetch."
+      //         );
+      //       }
+      //     } catch (error) {
+      //       console.error("Error fetching line items:", error);
+      //     }
+
+    //       // Fetch templates from 'fetchJsonData'
+    //       else {
+    //         console.error("Error: Missing template link to fetch templates.");
+
+    //         if (marquserinitialized) {
+    //           setShowTemplates(true);
+    //           setIsLoading(false);
+    //         } else {
+    //           setShowTemplates(false);
+    //           setIsLoading(false);
+    //           actions.addAlert({
+    //             title: "Error with template sync",
+    //             variant: "danger",
+    //             message: `There was an error fetching templates. Please try connecting to Marq again`,
+    //           });
+    //         }
+    //       }
+    //     } else {
+    //       console.error("Failed to load config data:", configDataResponse);
+    //     }
+    //   } catch (configError) {
+    //     console.error(
+    //       "Error occurred while fetching config data:",
+    //       configError
+    //     );
+    //   }
+    // } catch (error) {
+    //   console.error("Error in fetchConfigCrmPropertiesAndTemplates:", error);
+    // }
+
 
   const filterTemplates = (
     allTemplates,
@@ -1610,9 +1513,7 @@ const fetchObjectType = async () => {
     if (marqlookup.ok) {
         // Parse the response body as JSON
         const marqlookupResponseBody = await marqlookup.json();
-        const accounttableresult = marqlookupResponseBody.accounttableresult;
         const usertableresult = marqlookupResponseBody.usertableresult;
-        const datatableresult = marqlookupResponseBody.datatableresult;
 
         console.log("usertableresult:", usertableresult);
 
@@ -1621,7 +1522,8 @@ const fetchObjectType = async () => {
         ) {
           setIsPolling(false); // Stop polling
           setShowTemplates(true);
-          fetchPropertiesAndLoadConfig(); // Ensure objectType is defined
+          setShowMarqUserButton(false);
+          // fetchPropertiesAndLoadConfig(); // Ensure objectType is defined
         } else {
           setShowTemplates(false);
         }
@@ -1902,7 +1804,7 @@ const fetchObjectType = async () => {
           (field) => updatedProperties[fieldMapping[field]]
         );
         if (hasRelevantChange) {
-          fetchPropertiesAndLoadConfig();
+          // fetchPropertiesAndLoadConfig();
           if (
             hasInitialized.current &&
             filtersArray.length > 0 &&
