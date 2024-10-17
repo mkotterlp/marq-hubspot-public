@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"; 
 import {
   LoadingButton,
+  EmptyState,
   Flex,
   Box,
   Image,
@@ -96,7 +97,6 @@ const Extension = ({ context, actions }) => {
   let paginatedTemplates = [];
   let propertiesBody = {};
   let configData = {};
-  let templateLink;
   let marqAccountId = "";
   let collectionid = "";
   let datasetid = "";
@@ -158,7 +158,7 @@ const Extension = ({ context, actions }) => {
       marquserinitialized = true;
 
       setShowTemplates(true);  // Trigger to show templates
-      fetchandapplytemplates();
+      await fetchandapplytemplates();
       // fetchAssociatedProjectsAndDetails(objectType);
   } else {
       console.log("User is not initialized. Hiding templates...");
@@ -265,6 +265,7 @@ const fetchObjectType = async () => {
 
 const fetchandapplytemplates = async () => {
 
+  setIsLoading(true); 
   const currentTime = Date.now();
   const timeDifference = currentTime - lasttemplatesyncdate;
   const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
@@ -274,16 +275,13 @@ const fetchandapplytemplates = async () => {
     (!templatesfeed && marquserinitialized)
   ) {
     try {
-      setIsLoading(true); // Add await if setIsLoading is async
-  
+      console.log("Templates feed missing or synced more than 24hrs ago");
+
       // Fetch templates
       const templateFetchResponse = await hubspot.fetch(
         "https://marqembed.fastgenapp.com/fetch-marq-templates",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
           body: {}, 
         }
       );
@@ -292,7 +290,7 @@ const fetchandapplytemplates = async () => {
         const templateFetchResponseBody = await templateFetchResponse.json();
   
         // Accessing the objectType within the body -> Data -> body
-        templatesfeed = templateFetchResponseBody.Data?.body?.templatesfeed;
+        templatesfeed = templateFetchResponseBody.Data?.body?.templatesjsonurl;
   
         if (templatesfeed) {
           console.log("templatesfeed:", templatesfeed);
@@ -313,12 +311,9 @@ const fetchandapplytemplates = async () => {
       "https://marqembed.fastgenapp.com/fetch-jsondata",
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+        body: {
           templateLink: templatesfeed,
-        }),
+        },
       }
     );
   
@@ -370,12 +365,10 @@ const fetchandapplytemplates = async () => {
       console.error("Error with applying templates:", applytemplatesResponse);
     }
   }
-  
-  setIsLoading(false); // Stop loading regardless of success or error
-  
-  
 
- 
+  console.log("lasttemplatesyncdate:", lasttemplatesyncdate);
+  console.log("templatesfeed:", templatesfeed);
+  setIsLoading(false); // Stop loading regardless of success or error
 };
 
 
@@ -1533,6 +1526,7 @@ const fetchandapplytemplates = async () => {
           setIsPolling(false); // Stop polling
           setShowTemplates(true);
           setShowMarqUserButton(false);
+          await fetchandapplytemplates();
           // fetchPropertiesAndLoadConfig(); // Ensure objectType is defined
         } else {
           setShowTemplates(false);
@@ -2003,6 +1997,23 @@ const fetchandapplytemplates = async () => {
       <Flex direction="column" gap="medium" align="center">
         <LoadingSpinner label="Loading projects..." layout="centered" />
       </Flex>
+    );
+  }
+
+  if (!templates.length && !isLoading) {
+    return (
+      <EmptyState 
+        title="No templates found" 
+        layout="vertical" 
+        reverseOrder={true}
+      >
+        <Text>
+          Unable to find any templates. Please adjust your filters or add templates to your Marq brand template library.
+        </Text>
+        <Button onClick={() => fetchandapplytemplates()}>
+          Resync templates
+        </Button>
+      </EmptyState>
     );
   }
 
