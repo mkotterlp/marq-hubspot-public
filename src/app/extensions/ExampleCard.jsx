@@ -40,6 +40,8 @@ const Extension = ({ context, actions }) => {
   const [ShowMarqAccountButton, setShowMarqAccountButton] = useState(false);
   const [ShowMarqUserButton, setShowMarqUserButton] = useState(false);
   const [showTemplates, setShowTemplates] = useState(true);
+  const [userauthURL, setuserauthurl] = useState("");
+  const [accountauthURL, setaccountauthurl] = useState("");
   const [templates, setTemplates] = useState([]);
   const [allTemplates, setAllTemplates] = useState([]);
   const [fulltemplatelist, setfullTemplates] = useState([]);
@@ -111,24 +113,14 @@ const Extension = ({ context, actions }) => {
   ];
 
   const initialize = async () => {
-    // Ensure we haven't initialized already and that objectType is available
-    console.log("Initialization called...");
 
-    const authorizationUrlResponse = await handleConnectToMarq(
-      userid,
-      userEmail,
-      "user"
-    ); 
-    userauthurl = authorizationUrlResponse?.authorization_url; // Access the 'authorization_url' from the returned object
-    console.log("userauthurl:", userauthurl);
+    const authorizationUrlResponse = await handleConnectToMarq("user");
+    const userauth = authorizationUrlResponse?.authorization_url;
+    setuserauthurl(userauth);
     
-    const accountauthorizationUrlResponse = await handleConnectToMarq(
-      userid,
-      userEmail,
-      "data"
-    );
-    accountauthurl = accountauthorizationUrlResponse?.authorization_url; // Access the 'authorization_url' from the returned object
-    console.log("accountauthurl:", accountauthurl);
+    const accountauthorizationUrlResponse = await handleConnectToMarq("data");
+    const accountauth = accountauthorizationUrlResponse?.authorization_url;
+    setaccountauthurl(accountauth);
     
 
 
@@ -150,6 +142,7 @@ const Extension = ({ context, actions }) => {
             // Parse the response body as JSON
             const createusertableResponseBody = await createusertable.json();
             console.log("Response Body:", createusertableResponseBody);
+            marquserinitialized = createusertableResponseBody?.Data?.row?.values?.marquserinitialized;
 
             // Take actions based on the value of marquserinitialized
     if (marquserinitialized) {
@@ -1449,7 +1442,7 @@ const fetchObjectType = async (context) => {
       const accountData = accountTableResponseBody?.dataRow?.values || {};
       const matchedData = accountTableResponseBody?.objectTypeRow?.values || {};
 
-      marquserinitialized = accountData?.marquserinitialized || null;
+      marqaccountinitialized = accountData?.marqaccountinitialized || null;
       marqAccountId = accountData?.accountId || null;
       datasetid = matchedData?.datasetid || null;
       collectionid = matchedData?.collectionid || null;
@@ -1869,24 +1862,29 @@ const fetchObjectType = async (context) => {
   // Separate function to fetch Marq account data
   const fetchMarqAccountData = async () => {
     try {
-      const createaccounttable = await hubspot.fetch({
-        name: "dataTableHandler",
-        parameters: {
-          objectType: objectType,
-          userId: userid, // Pass the userId as a parameter
-        },
-      });
 
-      if (createaccounttable?.response?.body) {
-        const accountData =
-          JSON.parse(createaccounttable.response.body)?.dataRow?.values || {};
-        const matchedData =
-          JSON.parse(createaccounttable.response.body)?.objectTypeRow?.values ||
-          {};
-        const marqaccountinitialized = accountData.marqaccountinitialized || null;
+      const createaccounttable = await hubspot.fetch(
+        "https://marqembed.fastgenapp.com/datatablehandler2", 
+        {
+            method: "POST",
+            body: {
+              objectType: objectType
+            }
+        }
+    );
+    
+    if (createaccounttable.ok) {
+        // Parse the response body as JSON
+        const createaccounttableResponseBody = await createaccounttable.json();
+        console.log("createaccounttable response body:", createaccounttableResponseBody);
 
-        datasetid = matchedData.datasetid || null;
-        collectionid = matchedData.collectionid || null;
+        marqaccountinitialized = createaccounttableResponseBody?.Data?.dataRow?.values?.marqaccountinitialized;
+        datasetid = createaccounttableResponseBody?.Data?.objectTypeRow?.values?.datasetid || null;
+        marqaccountinitialized = createaccounttableResponseBody?.Data?.objectTypeRow?.values?.collectionid || null;
+
+
+        // datasetid = matchedData.datasetid || null;
+        // collectionid = matchedData.collectionid || null;
 
         if (marqaccountinitialized) {
           setShowMarqAccountButton(false);
@@ -2006,38 +2004,34 @@ const fetchObjectType = async (context) => {
     dynamicProperties,
   ]);
 
-  const handleConnectToMarq = async (userid, userEmail, metadataType) => {
+
+  const handleConnectToMarq = async (metadataType) => {
     try {
-      // Log request data before sending the request
-      console.log("Sending payload:", {
-        userid: userid,
-        userEmail: userEmail,
-        metadataType: metadataType,
-      });
-  
-      const response = await hubspot.fetch("https://marqembed.fastgenapp.com/generate-auth-url", {
+      const response = await hubspot.fetch("https://marqembed.fastgenapp.com/create-auth-url", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          userid: userid,
-          userEmail: userEmail,
+        body: {
           metadataType: metadataType,
-        }),
+        },
       });
   
       if (response.ok) {
-        const { authorizationUrl } = await response.json();
-        return authorizationUrl;
+        const data = await response.json(); // Parse the JSON response
+        // Check if Data exists in the response before accessing authorization_url
+        if (data.Data && data.Data.authorization_url) {
+          const authorization_url = data.Data.authorization_url;
+          return { authorization_url }; // Return as an object
+        } else {
+          console.error("Data or authorization_url is missing in the response");
+          return { authorization_url: null };
+        }
       } else {
-        const errorBody = await response.text();
-        console.error("Failed to get the authorization URL", response.status, response.statusText, errorBody);
-        return null;
+        const errorBody = await response.text(); // Read the error message if not OK
+        console.error("Failed to get the authorization URL", response.status, errorBody);
+        return { authorization_url: null };
       }
     } catch (error) {
       console.error("Error during authorization process:", error.message);
-      return null;
+      return { authorization_url: null };
     }
   };
   
@@ -2141,7 +2135,7 @@ const fetchObjectType = async (context) => {
         {/* Marq Account Button */}
         {ShowMarqAccountButton && (
           <LoadingButton
-            href={accountauthurl}
+            href={accountauthURL}
             loading={isLoading} // Use isLoading to control the spinner
             variant="primary"
             onClick={() => {
@@ -2355,7 +2349,7 @@ const fetchObjectType = async (context) => {
     if (ShowMarqUserButton) {
       return (
         <Button
-          href={userauthurl}
+          href={userauthURL}
           variant="primary"
           size="medium"
           type="button"
