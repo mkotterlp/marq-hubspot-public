@@ -129,8 +129,8 @@ const Extension = ({ context, actions }) => {
 
         try {
 
-          const createusertable = await hubspot.fetch(
-            "https://marqembed.fastgenapp.com/createusertable", 
+          const marqlookup = await hubspot.fetch(
+            "https://marqembed.fastgenapp.com/marq-lookup", 
             {
                 method: "POST",
                 body: {
@@ -138,11 +138,10 @@ const Extension = ({ context, actions }) => {
             }
         );
         
-        if (createusertable.ok) {
+        if (marqlookup.ok) {
             // Parse the response body as JSON
-            const createusertableResponseBody = await createusertable.json();
-            console.log("Response Body:", createusertableResponseBody);
-            marquserinitialized = createusertableResponseBody?.Data?.row?.values?.marquserinitialized;
+            const marqlookupResponseBody = await createusertable.json();
+            console.log("Response Body:", marqlookupResponseBody);
 
             // Take actions based on the value of marquserinitialized
     if (marquserinitialized) {

@@ -19,7 +19,8 @@
     "https://marqembed.fastgenapp.com/fetch-projectdetails",
     "https://marqembed.fastgenapp.com/fetch-accounttable",
     "https://marqembed.fastgenapp.com/datatablehandler2",
-    "https://marqembed.fastgenapp.com/create-auth-url"
+    "https://marqembed.fastgenapp.com/create-auth-url",
+    "https://marqembed.fastgenapp.com/marq-lookup"
     ],
   "logo": "./Marq_Q_Logo.png",
   "advancedScopeSettingsEnabled": true,
