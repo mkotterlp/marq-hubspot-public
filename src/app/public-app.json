@@ -14,7 +14,6 @@
     "https://marqembed.fastgenapp.com/fetch-jsondata",
     "https://marqembed.fastgenapp.com/delete-record",
     "https://marqembed.fastgenapp.com/fetch-projects",
-    "https://marqembed.fastgenapp.com/fetchusertable",
     "https://marqembed.fastgenapp.com/fetch-projectdetails",
     "https://marqembed.fastgenapp.com/fetch-accounttable",
     "https://marqembed.fastgenapp.com/update-dataset",
