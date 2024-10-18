@@ -158,7 +158,7 @@ const Extension = ({ context, actions }) => {
       marquserinitialized = true;
 
       setShowTemplates(true);  // Trigger to show templates
-      await fetchandapplytemplates();
+      fetchandapplytemplates();
       // fetchAssociatedProjectsAndDetails(objectType);
   } else {
       console.log("User is not initialized. Hiding templates...");
@@ -263,6 +263,48 @@ const fetchObjectType = async () => {
 };
 
 
+
+const applytemplates = async (fetchedTemplates) => {
+  try {
+    setfullTemplates(fetchedTemplates || []);
+
+    if (fetchedTemplates && fetchedTemplates.length > 0) {
+      console.log("fetchedTemplates:", fetchedTemplates);
+
+      // Uncomment and modify this block if filtering logic is needed
+      // if (fields.length && filters.length && Object.keys(propertiesBody).length > 0) {
+      //   const filtered = fetchedTemplates.filter((template) => {
+      //     return fields.every((field, index) => {
+      //       const categoryName = filters[index];
+      //       const propertyValue = propertiesBody[field]?.toLowerCase();
+      //       const category = template.categories.find(
+      //         (c) => c.category_name.toLowerCase() === categoryName.toLowerCase()
+      //       );
+      //       return category && category.values.map((v) => v.toLowerCase()).includes(propertyValue);
+      //     });
+      //   });
+
+      //   setTemplates(filtered.length > 0 ? filtered : fetchedTemplates);
+      //   setFilteredTemplates(filtered.length > 0 ? filtered : fetchedTemplates);
+      //   setInitialFilteredTemplates(filtered.length > 0 ? filtered : fetchedTemplates);
+      // } else {
+      console.warn("Missing data for filtering. Showing all templates.");
+      setTemplates(fetchedTemplates || []);
+      setFilteredTemplates(fetchedTemplates || []);
+      setInitialFilteredTemplates(fetchedTemplates || []);
+      // }
+    } else {
+      console.warn("No templates found. Setting empty array.");
+      setTemplates([]);
+      setFilteredTemplates([]);
+      setInitialFilteredTemplates([]);
+    }
+  } catch (error) {
+    console.error("Error in applytemplates:", error);
+  }
+};
+
+
 const fetchandapplytemplates = async () => {
 
   setIsLoading(true); 
@@ -290,15 +332,38 @@ const fetchandapplytemplates = async () => {
         const templateFetchResponseBody = await templateFetchResponse.json();
   
         // Accessing the objectType within the body -> Data -> body
-        templatesfeed = templateFetchResponseBody.Data?.body?.templatesjsonurl;
+        const fetchedTemplates = templateFetchResponseBody.templatesdata.templates;
+        console.log("fetchedTemplates", fetchedTemplates);
   
-        if (templatesfeed) {
-          console.log("templatesfeed:", templatesfeed);
+        if (fetchedTemplates) {
+          console.log("fetchedTemplates:", fetchedTemplates);
+
+          await applytemplates(fetchedTemplates);
+
+          // Fetch templates
+      const saveTemplatesResponse = await hubspot.fetch(
+        "https://marqembed.fastgenapp.com/save-marq-templates",
+        {
+          method: "POST",
+          body: {
+            templatesresponse: fetchedTemplates
+          }, 
+        }
+      );
+      if (saveTemplatesResponse.ok) {
+        const saveTemplatesResponseBody = await saveTemplatesResponse.json();
+        lasttemplatesyncdate = saveTemplatesResponseBody.lasttemplatesyncdate;
+        templatesfeed = saveTemplatesResponseBody.templatesjsonurl;
+      } else {
+        console.error("Error saving templates:", saveTemplatesResponse);
+      }
+
+          
         } else {
-          console.error("templatesfeed not found in response.");
+          console.error("fetched templates not found in response.");
         }
       } else {
-        console.error("Error fetching templatesfeed:", templateFetchResponse);
+        console.error("Error fetching templates:", templateFetchResponse);
       }
     } catch (error) {
       console.error("Error fetching templates:", error);
@@ -307,7 +372,7 @@ const fetchandapplytemplates = async () => {
 
   if (templatesfeed) {
     console.log("Applying templates");
-    const applytemplatesResponse = await hubspot.fetch(
+    const fetchjsonResponse = await hubspot.fetch(
       "https://marqembed.fastgenapp.com/fetch-jsondata",
       {
         method: "POST",
@@ -317,54 +382,15 @@ const fetchandapplytemplates = async () => {
       }
     );
   
-    if (applytemplatesResponse.ok) {
-      const applytemplatesResponseBody = await applytemplatesResponse.json();
-      const fetchedTemplates = applytemplatesResponseBody.Data;
-      setfullTemplates(fetchedTemplates);
-  
-      if (fetchedTemplates) {
-        console.log("fetchedTemplates:", fetchedTemplates);
-  
-        if (
-          fields.length &&
-          filters.length &&
-          Object.keys(propertiesBody).length > 0
-        ) {
-          const filtered = fetchedTemplates.filter((template) => {
-            return fields.every((field, index) => {
-              const categoryName = filters[index];
-              const propertyValue = propertiesBody[field]?.toLowerCase();
-              const category = template.categories.find(
-                (c) =>
-                  c.category_name.toLowerCase() === categoryName.toLowerCase()
-              );
-              return (
-                category &&
-                category.values
-                  .map((v) => v.toLowerCase())
-                  .includes(propertyValue)
-              );
-            });
-          });
-  
-          setTemplates(filtered.length > 0 ? filtered : fetchedTemplates);
-          setFilteredTemplates(filtered.length > 0 ? filtered : fetchedTemplates);
-          setInitialFilteredTemplates(
-            filtered.length > 0 ? filtered : fetchedTemplates
-          );
-        } else {
-          console.warn("Missing data for filtering. Showing all templates.");
-          setTemplates(fetchedTemplates);
-          setFilteredTemplates(fetchedTemplates);
-          setInitialFilteredTemplates(fetchedTemplates);
-        }
+    if (fetchjsonResponse.ok) {
+      const fetchjsonResponseBody = await fetchjsonResponse.json();
+      const fetchedTemplates = fetchjsonResponseBody.Data.Data.body.templatesresponse;
+      await applytemplates(fetchedTemplates);
       } else {
-        console.error("Unable to apply templates");
+        console.error("Error with applying templates:", fetchjsonResponse);
       }
-    } else {
-      console.error("Error with applying templates:", applytemplatesResponse);
-    }
-  }
+    } 
+  
 
   console.log("lasttemplatesyncdate:", lasttemplatesyncdate);
   console.log("templatesfeed:", templatesfeed);
@@ -670,13 +696,13 @@ const fetchandapplytemplates = async () => {
     setCurrentPage(1); // Reset to first page
   };
 
-  const deleteRecord = async (recordId, objectType) => {
+  const deleteRecord = async (objectId, objectType) => {
     try {
 
       await hubspot.fetch("https://marqembed.fastgenapp.com/deleterecord", {
         method: "POST",
         body: JSON.stringify({
-          recordId: recordId,
+          recordId: objectId,
           objectType: objectType,
         }), // Include additional parameters if needed
       });
@@ -684,7 +710,7 @@ const fetchandapplytemplates = async () => {
 
       // Remove the deleted record from the projects state
       setProjects((prevProjects) =>
-        prevProjects.filter((project) => project.objectId !== recordId)
+        prevProjects.filter((project) => project.objectId !== objectId)
       );
 
       // Add success alert
@@ -1280,80 +1306,34 @@ const fetchandapplytemplates = async () => {
     });
     setIframeOpen(true);
 
-    try {
 
-      const createaccounttable = await fetch("https://marqembed.fastgenapp.com/fetch-accounttable", {
-        method: "POST", // Assuming it's a POST request
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body:{
-          userId: userid,
-          objectType: objectType, // Pass objectType as a parameter
-        },
-      });
-
-      if (!createaccounttable?.response?.body) {
-        console.error(
-          "No response body from serverless function. Aborting poll."
-        );
-        return;
-      }
-
-      let accountTableResponseBody = {};
-      try {
-        accountTableResponseBody = JSON.parse(createaccounttable.response.body);
-      } catch (err) {
-        console.error("Failed to parse response body as JSON:", err);
-        return;
-      }
-
-      const accountData = accountTableResponseBody?.dataRow?.values || {};
-      const matchedData = accountTableResponseBody?.objectTypeRow?.values || {};
-
-      marqaccountinitialized = accountData?.marqaccountinitialized || null;
-      marqAccountId = accountData?.accountId || null;
-      datasetid = matchedData?.datasetid || null;
-      collectionid = matchedData?.collectionid || null;
-
-      if (!marqAccountId) {
-        console.error("marqAccountId is missing, cannot proceed.");
-        return;
-      }
-
-      const marqaccountid = marqAccountId;
-      const marquserId = marquserid;
-      const recordid = context.crm?.objectId?.toString() || "";
       const templateid = template?.id || "";
       const templatetitle = template?.title || "";
 
-      await updateData();
+      // await updateData();
 
 
       try {
-        const createProjectResponse = await hubspot.fetch({
-          name: "createProject",
-          parameters: {
-            marquserId: marquserId,
-            recordid: recordid,
-            templateid: templateid,
-            templatetitle: templatetitle,
-            marqaccountid: marqaccountid,
-            dataSetId: datasetid,
-          },
-        });
-
-        // Log the entire response for debugging
 
         let projectId = "";
+        const createProjectResponse = await hubspot.fetch(
+          "https://marqembed.fastgenapp.com/create-project2",
+          {
+            method: "POST",
+            body: {
+              templateid: templateid,
+              templatetitle: templatetitle,
+              recordid: context.crm.objectId?.toString(),
+            },
+          }
+        );
+      
+        if (createProjectResponse.ok) {
+          const createProjectResponseBody = await createProjectResponse.json();
+          const projectData = createProjectResponseBody.Data;
 
-        // Check if response status is successful
-        if (
-          createProjectResponse?.response?.statusCode === 200 ||
-          createProjectResponse?.response?.statusCode === 201
-        ) {
           try {
-            const projectData = JSON.parse(createProjectResponse.response.body);
+            const projectData = JSON.parse(createProjectResponse.response.body.project_info);
             console.log("Project created successfully:", projectData);
 
             // Ensure projectId is extracted correctly
@@ -1402,15 +1382,12 @@ const fetchandapplytemplates = async () => {
             return;
           }
         } else {
-          console.error(
-            "Failed to create project. Received response status:",
-            createProjectResponse?.response?.statusCode
-          );
-          console.error("Response details:", createProjectResponse?.response);
-          iframeFallback(template.id); // Fallback in case of failure
-          return;
-        }
-      } catch (error) {
+      console.error("Error with creating project:", createProjectResponse);
+      iframeFallback(template.id); // Fallback in case of failure
+      return;
+    } 
+  }
+         catch (error) {
         console.error("Error occurred during project creation:", error);
         if (error.response) {
           console.error("Error response status:", error.response.status);
@@ -1430,21 +1407,21 @@ const fetchandapplytemplates = async () => {
       });
       setIframeOpen(true);
       setShouldPollForProjects({ isPolling: true, templateId: template.id });
-    } catch (error) {
-      console.error("Error in handleClick:", error);
-      iframeFallback(template.id);
 
-      setShowTemplates(false);
-      setIsLoading(false);
+      // console.error("Error in handleClick:", error);
+      // iframeFallback(template.id);
 
-      // Show an alert to the user in case of error
-      actions.addAlert({
-        title: "Error with creating project",
-        variant: "danger",
-        message:
-          "There was an error with creating the project. Please try connecting to Marq again.",
-      });
-    }
+      // setShowTemplates(false);
+      // setIsLoading(false);
+
+      // // Show an alert to the user in case of error
+      // actions.addAlert({
+      //   title: "Error with creating project",
+      //   variant: "danger",
+      //   message:
+      //     "There was an error with creating the project. Please try connecting to Marq again.",
+      // });
+ 
   };
 
   /**
@@ -1524,9 +1501,9 @@ const fetchandapplytemplates = async () => {
           usertableresult
         ) {
           setIsPolling(false); // Stop polling
+          await fetchandapplytemplates();
           setShowTemplates(true);
           setShowMarqUserButton(false);
-          await fetchandapplytemplates();
           // fetchPropertiesAndLoadConfig(); // Ensure objectType is defined
         } else {
           setShowTemplates(false);
@@ -1670,7 +1647,8 @@ const fetchandapplytemplates = async () => {
 
       if (searchValue.trim() === "") {
         // Reset to the initially filtered templates when the search term is cleared
-        setFilteredTemplates([...initialFilteredTemplates]);
+        // setFilteredTemplates([...initialFilteredTemplates]);
+        setFilteredTemplates(Array.isArray(initialFilteredTemplates) ? [...initialFilteredTemplates] : []);
         // console.log('Initial Filtered Templates in handleSearch:', initialFilteredTemplates);
 
         setTitle("Relevant Content");
@@ -1685,7 +1663,8 @@ const fetchandapplytemplates = async () => {
     if (searchTerm.trim() === "") {
       // Ensure we only set the initial filtered templates if it's not already set
       if (filteredTemplates.length !== initialFilteredTemplates.length) {
-        setFilteredTemplates([...initialFilteredTemplates]);
+        // setFilteredTemplates([...initialFilteredTemplates]);
+        setFilteredTemplates(Array.isArray(initialFilteredTemplates) ? [...initialFilteredTemplates] : []);
         // console.log('Reset to Initial Filtered Templates:', initialFilteredTemplates);
       }
       setCurrentPage(1); // Reset to first page
@@ -1722,10 +1701,17 @@ const fetchandapplytemplates = async () => {
     }
   };
 
-  paginatedTemplates = filteredTemplates.slice(
+  // paginatedTemplates = filteredTemplates.slice(
+  //   (currentPage - 1) * RECORDS_PER_PAGE,
+  //   currentPage * RECORDS_PER_PAGE
+  // );
+
+ paginatedTemplates = (Array.isArray(filteredTemplates) ? filteredTemplates : []).slice(
     (currentPage - 1) * RECORDS_PER_PAGE,
     currentPage * RECORDS_PER_PAGE
   );
+  
+  
 
 
 
@@ -2000,7 +1986,7 @@ const fetchandapplytemplates = async () => {
     );
   }
 
-  if (!templates.length && !isLoading) {
+  if (!templates.length && !isLoading && showTemplates) {
     return (
       <EmptyState 
         title="No templates found" 
@@ -2198,7 +2184,7 @@ const fetchandapplytemplates = async () => {
                   <TableCell>
                     <LoadingButton
                       loading={loadingTemplateId === template.id}
-                      size="large"
+                      size="medium"
                       onClick={() => {
                         setLoadingTemplateId(template.id);
                         handleClick(template);
