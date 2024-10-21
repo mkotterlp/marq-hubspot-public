@@ -167,22 +167,22 @@ const Extension = ({ context, actions }) => {
       setShowTemplates(false);  // Hide templates or take other actions
   } 
 
-  if (accounttableresult) {
-    console.log("Account is initialized.");
-    marqaccountinitialized = true;
+//   if (accounttableresult) {
+//     console.log("Account is initialized.");
+//     marqaccountinitialized = true;
 
-    if (datatableresult) {
-      console.log("Data is initialized.");
-      await fetchMarqAccountData();  // Fetch account data if needed
-  } else {
-      console.log("Data is not initialized");
-  } 
+//     if (datatableresult) {
+//       console.log("Data is initialized.");
+//       await fetchMarqAccountData();  // Fetch account data if needed
+//   } else {
+//       console.log("Data is not initialized");
+//   } 
 
-} else {
-    console.log("Account is not initialized. Showing account button...");
-    setIsLoading(false);
-    setShowMarqAccountButton(true);
-} 
+// } else {
+//     console.log("Account is not initialized. Showing account button...");
+//     setIsLoading(false);
+//     setShowMarqAccountButton(true);
+// } 
 
 
         
@@ -892,7 +892,7 @@ const fetchandapplytemplates = async () => {
 
       // console.log('accountData:', accountData);
 
-      marqaccountinitialized = accountData?.marqaccountinitialized || null;
+      // marqaccountinitialized = accountData?.marqaccountinitialized || null;
       marqAccountId = accountData?.accountId || null;
       datasetid = matchedData?.datasetid || null;
       collectionid = matchedData?.collectionid || null;
@@ -1535,60 +1535,60 @@ const fetchandapplytemplates = async () => {
     };
   }, [isPolling]);
 
-  const startPollingForMarqAccount = () => {
-    setAccountIsPolling(true); // Start polling when the button is clicked
-  };
+  // const startPollingForMarqAccount = () => {
+  //   setAccountIsPolling(true); // Start polling when the button is clicked
+  // };
 
-  const pollForMarqAccount = async () => {
-    try {
-      // Fetch account data using the serverless function
-      const createaccounttable = await hubspot.fetch({
-        name: "fetchAccountTable",
-        parameters: { objectType: objectType, userId: userid }, // Include userId in the parameters
-      });
+  // const pollForMarqAccount = async () => {
+  //   try {
+  //     // Fetch account data using the serverless function
+  //     const createaccounttable = await hubspot.fetch({
+  //       name: "fetchAccountTable",
+  //       parameters: { objectType: objectType, userId: userid }, // Include userId in the parameters
+  //     });
 
-      if (!createaccounttable?.response?.body) {
-        console.error(
-          "No response body from serverless function. Aborting poll."
-        );
-        return;
-      }
+  //     if (!createaccounttable?.response?.body) {
+  //       console.error(
+  //         "No response body from serverless function. Aborting poll."
+  //       );
+  //       return;
+  //     }
 
-      try {
-        accountResponseBody = JSON.parse(createaccounttable.response.body);
-      } catch (err) {
-        console.error("Failed to parse response body as JSON:", err);
-        return;
-      }
+  //     try {
+  //       accountResponseBody = JSON.parse(createaccounttable.response.body);
+  //     } catch (err) {
+  //       console.error("Failed to parse response body as JSON:", err);
+  //       return;
+  //     }
 
-      const accountData = accountResponseBody?.dataRow?.values || {};
+  //     const accountData = accountResponseBody?.dataRow?.values || {};
 
-      marqaccountinitialized = accountData?.marqaccountinitialized || null;
-      marqAccountId = accountData?.accountId || null;
+  //     marqaccountinitialized = accountData?.marqaccountinitialized || null;
+  //     marqAccountId = accountData?.accountId || null;
 
-      if (!marqaccountinitialized) {
-        console.warn(
-          "Marq account not initialized, will continue polling."
-        );
-        setShowMarqAccountButton(true); // Optionally allow the user to retry
-        return;
-      }
+  //     if (!marqaccountinitialized) {
+  //       console.warn(
+  //         "Marq account not initialized, will continue polling."
+  //       );
+  //       setShowMarqAccountButton(true); // Optionally allow the user to retry
+  //       return;
+  //     }
 
-      setAccountIsPolling(false);
-      setShowMarqAccountButton(false);
+  //     setAccountIsPolling(false);
+  //     setShowMarqAccountButton(false);
 
-      try {
-        await createOrUpdateDataset();
-      } catch (error) {
-        console.error("Error creating or updating dataset:", error);
-      }
-    } catch (error) {
-      console.error(
-        "Error while polling for Marq account:",
-        error.message || error
-      );
-    }
-  };
+  //     try {
+  //       await createOrUpdateDataset();
+  //     } catch (error) {
+  //       console.error("Error creating or updating dataset:", error);
+  //     }
+  //   } catch (error) {
+  //     console.error(
+  //       "Error while polling for Marq account:",
+  //       error.message || error
+  //     );
+  //   }
+  // };
 
   useEffect(() => {
     let pollAccountInterval;
@@ -1724,50 +1724,50 @@ const fetchandapplytemplates = async () => {
 
 
 
-  // Separate function to fetch Marq account data
-  const fetchMarqAccountData = async () => {
-    try {
+  // // Separate function to fetch Marq account data
+  // const fetchMarqAccountData = async () => {
+  //   try {
 
-      const createaccounttable = await hubspot.fetch(
-        "https://marqembed.fastgenapp.com/datatablehandler2", 
-        {
-            method: "POST",
-            body: {
-              objectType: objectType
-            }
-        }
-    );
+  //     const createaccounttable = await hubspot.fetch(
+  //       "https://marqembed.fastgenapp.com/datatablehandler2", 
+  //       {
+  //           method: "POST",
+  //           body: {
+  //             objectType: objectType
+  //           }
+  //       }
+  //   );
     
-    if (createaccounttable.ok) {
-        // Parse the response body as JSON
-        const createaccounttableResponseBody = await createaccounttable.json();
-        console.log("createaccounttable response body:", createaccounttableResponseBody);
+  //   if (createaccounttable.ok) {
+  //       // Parse the response body as JSON
+  //       const createaccounttableResponseBody = await createaccounttable.json();
+  //       console.log("createaccounttable response body:", createaccounttableResponseBody);
 
-        marqaccountinitialized = createaccounttableResponseBody?.Data?.dataRow?.values?.marqaccountinitialized;
-        datasetid = createaccounttableResponseBody?.Data?.objectTypeRow?.values?.datasetid || null;
-        marqaccountinitialized = createaccounttableResponseBody?.Data?.objectTypeRow?.values?.collectionid || null;
+  //       marqaccountinitialized = createaccounttableResponseBody?.Data?.dataRow?.values?.marqaccountinitialized;
+  //       datasetid = createaccounttableResponseBody?.Data?.objectTypeRow?.values?.datasetid || null;
+  //       marqaccountinitialized = createaccounttableResponseBody?.Data?.objectTypeRow?.values?.collectionid || null;
 
 
-        // datasetid = matchedData.datasetid || null;
-        // collectionid = matchedData.collectionid || null;
+  //       // datasetid = matchedData.datasetid || null;
+  //       // collectionid = matchedData.collectionid || null;
 
-        if (marqaccountinitialized) {
-          setShowMarqAccountButton(false);
+  //       // if (marqaccountinitialized) {
+  //       //   setShowMarqAccountButton(false);
 
-          if (!datasetid || !collectionid) {
-            await createOrUpdateDataset();
-          }
-        } else {
-          setShowMarqAccountButton(true);
-        }
-      } else {
-        console.error("Failed to fetch Marq account data.");
-        setShowMarqAccountButton(true);
-      }
-    } catch (error) {
-      console.error("Error in fetching Marq account data:", error);
-    }
-  };
+  //       //   if (!datasetid || !collectionid) {
+  //       //     await createOrUpdateDataset();
+  //       //   }
+  //       // } else {
+  //       //   setShowMarqAccountButton(true);
+  //       // }
+  //     } else {
+  //       console.error("Failed to fetch Marq account data.");
+  //       setShowMarqAccountButton(true);
+  //     }
+  //   } catch (error) {
+  //     console.error("Error in fetching Marq account data:", error);
+  //   }
+  // };
 
 
   useEffect(() => {
@@ -2014,7 +2014,7 @@ const fetchandapplytemplates = async () => {
   if (showTemplates) {
     return (
       <>
-        {/* Marq Account Button */}
+        {/* Marq Account Button
         {ShowMarqAccountButton && (
           <LoadingButton
             href={accountauthURL}
@@ -2026,7 +2026,7 @@ const fetchandapplytemplates = async () => {
           >
             {isLoading ? "Syncing..." : "Sync Marq account data"}
           </LoadingButton>
-        )}
+        )} */}
 
         <Form>
           <Flex direction="row" justify="center" gap="small">
