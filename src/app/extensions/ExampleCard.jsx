@@ -323,6 +323,30 @@ const fetchObjectType = async () => {
 };
 
 
+const fetchtemplatefilters = async () => {
+  try {
+    const embedoptionslookup = await hubspot.fetch(
+      "https://marqembed.fastgenapp.com/marq-embed-options-lookup",
+      {
+        method: "POST",
+        body: {}
+      }
+    );
+    if (embedoptionslookup.ok) {
+      // Parse the response body as JSON
+      const embedoptionslookupResponseBody = await embedoptionslookup.json();
+      const embedoptionsresult = embedoptionslookupResponseBody.response;
+
+      console.log("embedoptionsresult:", embedoptionsresult);
+    } else {
+      console.error(`Error fetching embed options table: ${embedoptionslookup.status} - ${embedoptionslookup.statusText}`);
+    }
+  } catch (error) {
+    console.error("Error in fetching embed options:", error);
+  }
+};
+
+
 
 const applytemplates = async (fetchedTemplates) => {
   try {
@@ -330,6 +354,8 @@ const applytemplates = async (fetchedTemplates) => {
 
     if (fetchedTemplates && fetchedTemplates.length > 0) {
       console.log("fetchedTemplates:", fetchedTemplates);
+
+      await fetchtemplatefilters();
 
       // Uncomment and modify this block if filtering logic is needed
       // if (fields.length && filters.length && Object.keys(propertiesBody).length > 0) {
@@ -971,7 +997,7 @@ const fetchandapplytemplates = async () => {
       const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(editorinnerurl)}`;
 
       editoriframeSrc =
-        "https://info.marq.com/marqembed?iframeUrl=" +
+        "https://info.marq.com/marqembed2?iframeUrl=" +
         encodeURIComponent(baseInnerUrl);
 
       setIframeUrl(editoriframeSrc);
@@ -1430,7 +1456,7 @@ const fetchandapplytemplates = async () => {
             const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(returnUrl)}`;
 
             iframeSrc =
-              "https://info.marq.com/marqembed?iframeUrl=" +
+              "https://info.marq.com/marqembed2?iframeUrl=" +
               encodeURIComponent(baseInnerUrl);
           } catch (parseError) {
             console.error(
@@ -1528,7 +1554,7 @@ const fetchandapplytemplates = async () => {
     const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(returnUrl)}`;
 
     iframeSrc =
-      "https://info.marq.com/marqembed?iframeUrl=" +
+      "https://info.marq.com/marqembed2?iframeUrl=" +
       encodeURIComponent(baseInnerUrl);
     setIframeUrl(iframeSrc);
     actions.openIframeModal({
