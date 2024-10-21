@@ -34,7 +34,7 @@ hubspot.extend((extensionContext) => {
 
 const Extension = ({ context, actions }) => {
   const [iframeUrl, setIframeUrl] = useState("");
-  const [marquserid, setMarquserid] = useState("");
+  const [constobjectType, setconstobjectType] = useState("");
   const [isPolling, setIsPolling] = useState(false);
   const [isAccountPolling, setAccountIsPolling] = useState(false);
   const [loadingTemplateId, setLoadingTemplateId] = useState(null);
@@ -248,6 +248,7 @@ const fetchObjectType = async () => {
         
         // Accessing the objectType within the body -> Data -> body
         objectType = objectTypeResponseBody.Data?.body?.objectType;
+        setconstobjectType(objectType);
 
         if (objectType) {
           console.log("Object Type:", objectType);
@@ -895,6 +896,9 @@ const fetchandapplytemplates = async () => {
       marqAccountId = accountData?.accountId || null;
       datasetid = matchedData?.datasetid || null;
       collectionid = matchedData?.collectionid || null;
+      const creatorid = context.user.id;
+      const portalid = context.portal.id;
+      const originobjectType = constobjectType;
 
       if (!marqAccountId) {
         console.error("marqAccountId is missing, cannot proceed.");
@@ -904,7 +908,7 @@ const fetchandapplytemplates = async () => {
 
       await updateData();
 
-      let editorinnerurl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${encodedoptions}&creatorid=${userid}&contactid=${contactId}&hubid=${hubid}&objecttype=${objectType}&fileid=${fileId}`;
+      let editorinnerurl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${encodedoptions}&creatorid=${creatorid}&contactid=${contactId}&hubid=${portalid}&objecttype=${originobjectType}&fileid=${fileId}`;
       const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(editorinnerurl)}`;
 
       editoriframeSrc =
@@ -1457,7 +1461,11 @@ const fetchandapplytemplates = async () => {
     );
 
     const contactId = context.crm.objectId;
-    const returnUrl = `https://app.marq.com/documents/editNewIframed/${templateId}?embeddedOptions=${encodedOptions}&creatorid=${userid}&contactid=${contactId}&hubid=${hubid}&objecttype=${objectType}&dealstage=${stageName}&templateid=${templateId}`;
+    const creatorid = context.user.id;
+    const portalid = context.portal.id;
+    const originobjectType = constobjectType;
+
+    const returnUrl = `https://app.marq.com/documents/editNewIframed/${templateId}?embeddedOptions=${encodedOptions}&creatorid=${creatorid}&contactid=${contactId}&hubid=${portalid}&objecttype=${originobjectType}&dealstage=${stageName}&templateid=${templateId}`;
     const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(returnUrl)}`;
 
     iframeSrc =
