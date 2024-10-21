@@ -93,6 +93,7 @@ const Extension = ({ context, actions }) => {
   let hubid = "";
   let lasttemplatesyncdate = "";
   let templatesfeed = "";
+  let templatefilterslookupresult = {};
   let marquserinitialized = false;
   let marqaccountinitialized = false;
   let paginatedTemplates = [];
@@ -325,70 +326,138 @@ const fetchObjectType = async () => {
 
 const fetchtemplatefilters = async () => {
   try {
-    const embedoptionslookup = await hubspot.fetch(
-      "https://marqembed.fastgenapp.com/marq-embed-options-lookup",
+    const templatefilterslookup = await hubspot.fetch(
+      "https://marqembed.fastgenapp.com/marq-filters-lookup",
       {
         method: "POST",
-        body: {}
+        body: JSON.stringify({})
       }
     );
-    if (embedoptionslookup.ok) {
-      // Parse the response body as JSON
-      const embedoptionslookupResponseBody = await embedoptionslookup.json();
-      const embedoptionsresult = embedoptionslookupResponseBody.response;
 
-      console.log("embedoptionsresult:", embedoptionsresult);
+    if (templatefilterslookup.ok) {
+      const templatefilterslookupResponseBody = await templatefilterslookup.json();
+      templatefilterslookupresult = templatefilterslookupResponseBody.response.mapping;
+
+      console.log("templatefilterslookupresult:", templatefilterslookupresult);
     } else {
-      console.error(`Error fetching embed options table: ${embedoptionslookup.status} - ${embedoptionslookup.statusText}`);
+      console.error(
+        `Error fetching template filters: ${templatefilterslookup.status} - ${templatefilterslookup.statusText}`
+      );
     }
   } catch (error) {
-    console.error("Error in fetching embed options:", error);
+    console.error("Error in fetching template filters:", error);
   }
 };
 
+const fetchObjectProperties = async (objectType, objectId) => {
+  try {
+    const response = await hubspot.fetch('https://marqembed.fastgenapp.com/fetch-object-properties', {
+      method: 'POST',
+      body: JSON.stringify({ objectType, objectId }),
+    });
 
+    const data = await response.json();
+    return data.properties || [];
+  } catch (error) {
+    console.error('Error fetching object properties:', error);
+    return [];
+  }
+};
 
-const applytemplates = async (fetchedTemplates) => {
+const getObjectProperties = async (template, categoryField, formField) => {
+  const matchingCategory = template.categories.find(
+    (category) => category.category_name.toLowerCase() === categoryField.toLowerCase()
+  );
+
+  if (matchingCategory) {
+    const objectType = template.objectType || null;
+    const objectId = template.objectId || null;
+
+    if (objectType && objectId) {
+      const properties = await fetchObjectProperties(objectType, objectId);
+      return {
+        objectType,
+        objectId,
+        properties,
+      };
+    }
+  }
+
+  return null;
+};
+
+const applytemplates = async (fetchedTemplates, propertiesBody) => {
   try {
     setfullTemplates(fetchedTemplates || []);
 
     if (fetchedTemplates && fetchedTemplates.length > 0) {
-      console.log("fetchedTemplates:", fetchedTemplates);
+      console.log('fetchedTemplates:', fetchedTemplates);
 
+      // Fetch the template filters and store them in templatefilterslookupresult
       await fetchtemplatefilters();
 
-      // Uncomment and modify this block if filtering logic is needed
-      // if (fields.length && filters.length && Object.keys(propertiesBody).length > 0) {
-      //   const filtered = fetchedTemplates.filter((template) => {
-      //     return fields.every((field, index) => {
-      //       const categoryName = filters[index];
-      //       const propertyValue = propertiesBody[field]?.toLowerCase();
-      //       const category = template.categories.find(
-      //         (c) => c.category_name.toLowerCase() === categoryName.toLowerCase()
-      //       );
-      //       return category && category.values.map((v) => v.toLowerCase()).includes(propertyValue);
-      //     });
-      //   });
+      // Check if templatefilterslookupresult is defined and has the expected structure
+      if (templatefilterslookupresult && typeof templatefilterslookupresult === 'object') {
+        const filters = Object.keys(templatefilterslookupresult); // Get filter categories (keys)
+        const fields = filters.map((filter) => templatefilterslookupresult[filter]?.[0]?.formField); // Get form fields from the lookup result
 
-      //   setTemplates(filtered.length > 0 ? filtered : fetchedTemplates);
-      //   setFilteredTemplates(filtered.length > 0 ? filtered : fetchedTemplates);
-      //   setInitialFilteredTemplates(filtered.length > 0 ? filtered : fetchedTemplates);
-      // } else {
-      console.warn("Missing data for filtering. Showing all templates.");
-      setTemplates(fetchedTemplates || []);
-      setFilteredTemplates(fetchedTemplates || []);
-      setInitialFilteredTemplates(fetchedTemplates || []);
-      // }
+        if (templatefilterslookupresult && typeof templatefilterslookupresult === 'object') {
+          // Retrieve 'contacts' and 'deals' keys
+          const filters = Object.keys(templatefilterslookupresult); // Get 'contacts', 'deals', etc.
+          
+          const fields = filters.flatMap((filter) => 
+            templatefilterslookupresult[filter]?.map(item => item.formField)
+          ); // Map formFields from 'contacts' and 'deals'
+        
+          console.log('fields:', fields);
+          
+          if (fields.length && filters.length && Object.keys(propertiesBody).length > 0) {
+            const filtered = await Promise.all(fetchedTemplates.map(async (template) => {
+              const matchesAllFields = await Promise.all(fields.map(async (field, index) => {
+                const category = templatefilterslookupresult[filters[index]];
+                const categoryName = category?.[0]?.categoryField?.toLowerCase();
+                const formField = fields[index];
+                const propertyValue = propertiesBody[formField]?.toLowerCase();
+        
+                const matchingObject = await getObjectProperties(template, categoryName, formField);
+        
+                return matchingObject && matchingObject.properties.map((v) => v.toLowerCase()).includes(propertyValue);
+              }));
+        
+              return matchesAllFields.every(Boolean);
+            }));
+        
+            const filteredTemplates = fetchedTemplates.filter((_, index) => filtered[index]);
+        
+            setTemplates(filteredTemplates.length > 0 ? filteredTemplates : fetchedTemplates);
+            setFilteredTemplates(filteredTemplates.length > 0 ? filteredTemplates : fetchedTemplates);
+            setInitialFilteredTemplates(filteredTemplates.length > 0 ? filteredTemplates : fetchedTemplates);
+          } else {
+            console.warn('Missing data for filtering. Showing all templates.');
+            setTemplates(fetchedTemplates || []);
+            setFilteredTemplates(fetchedTemplates || []);
+            setInitialFilteredTemplates(fetchedTemplates || []);
+          }
+        }
+      }        
+      
+      else {
+        console.error("templatefilterslookupresult is undefined or not an object.");
+        setTemplates(fetchedTemplates || []);
+        setFilteredTemplates(fetchedTemplates || []);
+        setInitialFilteredTemplates(fetchedTemplates || []);
+      }
     } else {
-      console.warn("No templates found. Setting empty array.");
+      console.warn('No templates found. Setting empty array.');
       setTemplates([]);
       setFilteredTemplates([]);
       setInitialFilteredTemplates([]);
     }
   } catch (error) {
-    console.error("Error in applytemplates:", error);
+    console.error('Error in applytemplates:', error);
   }
 };
+
 
 
 const fetchandapplytemplates = async () => {
