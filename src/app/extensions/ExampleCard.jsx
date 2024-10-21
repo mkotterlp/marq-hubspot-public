@@ -35,6 +35,7 @@ hubspot.extend((extensionContext) => {
 const Extension = ({ context, actions }) => {
   const [iframeUrl, setIframeUrl] = useState("");
   const [constobjectType, setconstobjectType] = useState("");
+  const [processedembedoptions, setprocessedembedoptions] = useState("");
   const [isPolling, setIsPolling] = useState(false);
   const [isAccountPolling, setAccountIsPolling] = useState(false);
   const [loadingTemplateId, setLoadingTemplateId] = useState(null);
@@ -229,47 +230,60 @@ useEffect(() => {
 
 const fetchembedoptions = async () => {
   try {
-
     const embedoptionslookup = await hubspot.fetch(
-      "https://marqembed.fastgenapp.com/marq-embed-options-lookup", 
+      "https://marqembed.fastgenapp.com/marq-embed-options-lookup",
       {
-          method: "POST",
-          body: {}
+        method: "POST",
+        body: {}
       }
-  );
-  
-  if (embedoptionslookup.ok) {
+    );
+
+    if (embedoptionslookup.ok) {
       // Parse the response body as JSON
-      const embedoptionslookupResponseBody = await embedoptionslookupResponseBody.json();
+      const embedoptionslookupResponseBody = await embedoptionslookup.json();
       const embedoptionsresult = embedoptionslookupResponseBody.response;
 
       console.log("embedoptionsresult:", embedoptionsresult);
 
-  const encodedOptions = encodeURIComponent(
-    btoa(
-      JSON.stringify({
-        enabledFeatures: configData.enabledFeatures?.map(
-          (feature) => feature.name
-        ) || ["share"],
-        fileTypes: configData.fileTypes?.map(
-          (fileType) => fileType.name
-        ) || ["pdf"],
-        showTabs: configData.showTabs?.map((tab) => tab.name) || [
-          "templates",
-        ],
-      })
-    )
-  );
+      // Grouping the options into enabled features, file types, and tabs
+      const enabledFeatures = [];
+      if (embedoptionsresult.collaboratingtoggle) enabledFeatures.push('collaborate');
+      if (embedoptionsresult.downloadingtoggle) enabledFeatures.push('download');
+      if (embedoptionsresult.printingtoggle) enabledFeatures.push('print');
+      if (embedoptionsresult.sharingtoggle) enabledFeatures.push('share');
 
-  } else {
-      console.error(`Error fetching embed options table: ${marqlookup.status} - ${marqlookup.statusText}`);
-  }
+      let fileTypes = [];
+      if (!embedoptionsresult.exportformat || embedoptionsresult.exportformat === 'all') {
+        fileTypes = ['pdf', 'jpg', 'png', 'gif', 'mp4'];
+      } else {
+        fileTypes = [embedoptionsresult.exportformat];
+      }
+
+      const showTabs = ['templates']; // Add dynamic conditions here if needed
+
+      // Creating encodedOptions
+      const encodedOptions = encodeURIComponent(
+        btoa(
+          JSON.stringify({
+            enabledFeatures: enabledFeatures.length > 0 ? enabledFeatures : ["share"],
+            fileTypes: fileTypes.length > 0 ? fileTypes : ["pdf"],
+            showTabs: showTabs.length > 0 ? showTabs : ["templates"],
+          })
+        )
+      );
+
+      console.log("encodedOptions:", encodedOptions);
+
+      setprocessedembedoptions(encodedOptions);
+
+    } else {
+      console.error(`Error fetching embed options table: ${embedoptionslookup.status} - ${embedoptionslookup.statusText}`);
+    }
   } catch (error) {
-      console.error("Error in fetching embed options:", error);
+    console.error("Error in fetching embed options:", error);
   }
+};
 
-
-}
 
 const fetchObjectType = async () => {
   try {
@@ -953,7 +967,7 @@ const fetchandapplytemplates = async () => {
 
       await updateData();
 
-      let editorinnerurl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${encodedoptions}&creatorid=${creatorid}&contactid=${contactId}&hubid=${portalid}&objecttype=${originobjectType}&fileid=${fileId}`;
+      let editorinnerurl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${processedembedoptions}&creatorid=${creatorid}&contactid=${contactId}&hubid=${portalid}&objecttype=${originobjectType}&fileid=${fileId}`;
       const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(editorinnerurl)}`;
 
       editoriframeSrc =
@@ -1395,24 +1409,24 @@ const fetchandapplytemplates = async () => {
               return;
             }
 
-            const encodedOptions = encodeURIComponent(
-              btoa(
-                JSON.stringify({
-                  enabledFeatures: configData.enabledFeatures?.map(
-                    (feature) => feature.name
-                  ) || ["share"],
-                  fileTypes: configData.fileTypes?.map(
-                    (fileType) => fileType.name
-                  ) || ["pdf"],
-                  showTabs: configData.showTabs?.map((tab) => tab.name) || [
-                    "templates",
-                  ],
-                })
-              )
-            );
+            // const encodedOptions = encodeURIComponent(
+            //   btoa(
+            //     JSON.stringify({
+            //       enabledFeatures: configData.enabledFeatures?.map(
+            //         (feature) => feature.name
+            //       ) || ["share"],
+            //       fileTypes: configData.fileTypes?.map(
+            //         (fileType) => fileType.name
+            //       ) || ["pdf"],
+            //       showTabs: configData.showTabs?.map((tab) => tab.name) || [
+            //         "templates",
+            //       ],
+            //     })
+            //   )
+            // );
 
             const contactId = context.crm.objectId;
-            const returnUrl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${encodedOptions}&creatorid=${userid}&contactid=${contactId}&hubid=${hubid}&objecttype=${objectType}&dealstage=${stageName}&templateid=${template.id}`;
+            const returnUrl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${processedembedoptions}&creatorid=${userid}&contactid=${contactId}&hubid=${hubid}&objecttype=${objectType}&dealstage=${stageName}&templateid=${template.id}`;
             const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(returnUrl)}`;
 
             iframeSrc =
@@ -1489,28 +1503,28 @@ const fetchandapplytemplates = async () => {
     });
     setIframeOpen(true);
 
-    const encodedOptions = encodeURIComponent(
-      btoa(
-        JSON.stringify({
-          enabledFeatures: configData.enabledFeatures?.map(
-            (feature) => feature.name
-          ) || ["share"],
-          fileTypes: configData.fileTypes?.map((fileType) => fileType.name) || [
-            "pdf",
-          ],
-          showTabs: configData.showTabs?.map((tab) => tab.name) || [
-            "templates",
-          ],
-        })
-      )
-    );
+    // const encodedOptions = encodeURIComponent(
+    //   btoa(
+    //     JSON.stringify({
+    //       enabledFeatures: configData.enabledFeatures?.map(
+    //         (feature) => feature.name
+    //       ) || ["share"],
+    //       fileTypes: configData.fileTypes?.map((fileType) => fileType.name) || [
+    //         "pdf",
+    //       ],
+    //       showTabs: configData.showTabs?.map((tab) => tab.name) || [
+    //         "templates",
+    //       ],
+    //     })
+    //   )
+    // );
 
     const contactId = context.crm.objectId;
     const creatorid = context.user.id;
     const portalid = context.portal.id;
     const originobjectType = constobjectType;
 
-    const returnUrl = `https://app.marq.com/documents/editNewIframed/${templateId}?embeddedOptions=${encodedOptions}&creatorid=${creatorid}&contactid=${contactId}&hubid=${portalid}&objecttype=${originobjectType}&dealstage=${stageName}&templateid=${templateId}`;
+    const returnUrl = `https://app.marq.com/documents/editNewIframed/${templateId}?embeddedOptions=${processedembedoptions}&creatorid=${creatorid}&contactid=${contactId}&hubid=${portalid}&objecttype=${originobjectType}&dealstage=${stageName}&templateid=${templateId}`;
     const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(returnUrl)}`;
 
     iframeSrc =
