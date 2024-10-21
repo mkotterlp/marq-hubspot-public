@@ -117,9 +117,9 @@ const Extension = ({ context, actions }) => {
     const userauth = authorizationUrlResponse?.authorization_url;
     setuserauthurl(userauth);
     
-    const accountauthorizationUrlResponse = await handleConnectToMarq("data");
-    const accountauth = accountauthorizationUrlResponse?.authorization_url;
-    setaccountauthurl(accountauth);
+    // const accountauthorizationUrlResponse = await handleConnectToMarq("data");
+    // const accountauth = accountauthorizationUrlResponse?.authorization_url;
+    // setaccountauthurl(accountauth);
     
 
 
@@ -159,6 +159,7 @@ const Extension = ({ context, actions }) => {
 
       setShowTemplates(true);  // Trigger to show templates
       fetchandapplytemplates();
+      fetchembedoptions();
       // fetchAssociatedProjectsAndDetails(objectType);
   } else {
       console.log("User is not initialized. Hiding templates...");
@@ -225,6 +226,50 @@ useEffect(() => {
   }
 }, [context]);
 
+
+const fetchembedoptions = async () => {
+  try {
+
+    const embedoptionslookup = await hubspot.fetch(
+      "https://marqembed.fastgenapp.com/marq-embed-options-lookup", 
+      {
+          method: "POST",
+          body: {}
+      }
+  );
+  
+  if (embedoptionslookup.ok) {
+      // Parse the response body as JSON
+      const embedoptionslookupResponseBody = await embedoptionslookupResponseBody.json();
+      const embedoptionsresult = embedoptionslookupResponseBody.response;
+
+      console.log("embedoptionsresult:", embedoptionsresult);
+
+  const encodedOptions = encodeURIComponent(
+    btoa(
+      JSON.stringify({
+        enabledFeatures: configData.enabledFeatures?.map(
+          (feature) => feature.name
+        ) || ["share"],
+        fileTypes: configData.fileTypes?.map(
+          (fileType) => fileType.name
+        ) || ["pdf"],
+        showTabs: configData.showTabs?.map((tab) => tab.name) || [
+          "templates",
+        ],
+      })
+    )
+  );
+
+  } else {
+      console.error(`Error fetching embed options table: ${marqlookup.status} - ${marqlookup.statusText}`);
+  }
+  } catch (error) {
+      console.error("Error in fetching embed options:", error);
+  }
+
+
+}
 
 const fetchObjectType = async () => {
   try {
