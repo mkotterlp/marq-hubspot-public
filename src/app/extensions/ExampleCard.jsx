@@ -45,6 +45,7 @@ const Extension = ({ context, actions }) => {
   const [userauthURL, setuserauthurl] = useState("");
   const [accountauthURL, setaccountauthurl] = useState("");
   const [templates, setTemplates] = useState([]);
+  const [GlobalWatchFields, setGlobalWatchFields] = useState([]);
   const [paginatedTemplates, setPaginatedTemplates] = useState([]);
   const [allTemplates, setAllTemplates] = useState([]);
   const [fulltemplatelist, setfullTemplates] = useState([]);
@@ -146,14 +147,8 @@ const Extension = ({ context, actions }) => {
             const usertableresult = marqlookupResponseBody.usertableresult;
             const datatableresult = marqlookupResponseBody.datatableresult;
 
-            console.log("usertableresult:", usertableresult);
-            console.log("accounttableresult:", accounttableresult);
-            console.log("datatableresult:", datatableresult);
-
             // Take actions based on the value of marquserinitialized
     if (usertableresult) {
-      console.log("User is initialized. Showing templates...");
-
       lasttemplatesyncdate = usertableresult.lasttemplatesyncdate ?? null;
       templatesfeed = usertableresult.templatesfeed ?? null;
       marquserinitialized = true;
@@ -243,7 +238,6 @@ const fetchembedoptions = async () => {
       const embedoptionslookupResponseBody = await embedoptionslookup.json();
       const embedoptionsresult = embedoptionslookupResponseBody.response;
 
-      console.log("embedoptionsresult:", embedoptionsresult);
 
       // Grouping the options into enabled features, file types, and tabs
       const enabledFeatures = [];
@@ -272,7 +266,6 @@ const fetchembedoptions = async () => {
         )
       );
 
-      console.log("encodedOptions:", encodedOptions);
 
       setprocessedembedoptions(encodedOptions);
 
@@ -335,13 +328,11 @@ const fetchtemplatefilters = async () => {
 
     if (response.ok) {
       const templatefilterslookupResponseBody = await response.json();
-      console.log("Full Response Body:", templatefilterslookupResponseBody);
 
       // Check if the response and mapping are present
       if (templatefilterslookupResponseBody && templatefilterslookupResponseBody.response && templatefilterslookupResponseBody.response.mapping) {
         // Parse the 'mapping' field which is a JSON string
         const templatefilterslookupresult = JSON.parse(templatefilterslookupResponseBody.response.mapping);
-        console.log("Parsed templatefilterslookupresult:", templatefilterslookupresult);
         return templatefilterslookupresult; // Return the parsed result
       } else {
         console.error("Unexpected structure in response:", templatefilterslookupResponseBody);
@@ -416,11 +407,9 @@ const applytemplates = async (fetchedTemplates) => {
     setfullTemplates(fetchedTemplates || []);
 
     if (fetchedTemplates && fetchedTemplates.length > 0) {
-      console.log('fetchedTemplates:', fetchedTemplates);
 
       // Await the result of fetchtemplatefilters and store it locally
       const templatefilterslookupresult = await fetchtemplatefilters();
-      console.log("result from templatefilterslookupresult:", templatefilterslookupresult);
 
       // Check if templatefilterslookupresult is valid
       if (templatefilterslookupresult && typeof templatefilterslookupresult === 'object') {
@@ -437,14 +426,11 @@ const applytemplates = async (fetchedTemplates) => {
         }
 
         globalfields = filterEntries.map(entry => entry.formField); // Get formFields (e.g., 'industry', 'dealstage')
+        setGlobalWatchFields(globalfields);
         globalcategories = filterEntries.map(entry => entry.categoryField.toLowerCase()); // Get categoryField (e.g., 'Industry', 'HS deal stage')
-
-        console.log('fields:', globalfields);
-        console.log('filters:', globalcategories);
 
         // Now, fetch the properties based on the fields
         const propertiesBody = await fetchObjectPropertiesFromFields(globalfields);
-        console.log("Fetched propertiesBody:", propertiesBody);
 
         if (globalfields.length && globalcategories.length && propertiesBody && Object.keys(propertiesBody).length > 0) {
           // Call filterTemplates here
@@ -483,7 +469,6 @@ const fetchandapplytemplates = async () => {
     (!templatesfeed && marquserinitialized)
   ) {
     try {
-      console.log("Templates feed missing or synced more than 24hrs ago");
 
       // Fetch templates
       const templateFetchResponse = await hubspot.fetch(
@@ -499,10 +484,8 @@ const fetchandapplytemplates = async () => {
   
         // Accessing the objectType within the body -> Data -> body
         const fetchedTemplates = templateFetchResponseBody.templatesdata.templates;
-        console.log("fetchedTemplates", fetchedTemplates);
   
         if (fetchedTemplates) {
-          console.log("fetchedTemplates:", fetchedTemplates);
 
           await applytemplates(fetchedTemplates);
 
@@ -537,7 +520,6 @@ const fetchandapplytemplates = async () => {
   } 
 
   if (templatesfeed) {
-    console.log("Applying templates");
     const fetchjsonResponse = await hubspot.fetch(
       "https://marqembed.fastgenapp.com/fetch-jsondata",
       {
@@ -556,10 +538,6 @@ const fetchandapplytemplates = async () => {
         console.error("Error with applying templates:", fetchjsonResponse);
       }
     } 
-  
-
-  console.log("lasttemplatesyncdate:", lasttemplatesyncdate);
-  console.log("templatesfeed:", templatesfeed);
   setIsLoading(false); // Stop loading regardless of success or error
 };
 
@@ -822,15 +800,6 @@ const fetchandapplytemplates = async () => {
       properties
     ) => {
       let filtered = Array.isArray(allTemplates) ? allTemplates : [];
-    
-      // Log the inputs
-      console.log("Filtering templates with the following criteria:");
-      console.log("All Templates: ", allTemplates.length);
-      console.log("Search Term: ", searchTerm);
-      console.log("Fields Array: ", globalfields);
-      console.log("Filters Array: ", globalcategories);
-      console.log("Properties: ", properties);
-    
       // Dynamically extract filters
       const categoryFilters = extractFiltersFromProperties(globalfields, globalcategories, properties);
     
@@ -859,18 +828,15 @@ const fetchandapplytemplates = async () => {
           return matchesSearchTerm;
         });
       } else {
-          console.log("Search term is empty, resetting to initial filtered templates.");
           filtered = Array.isArray(initialFilteredTemplates) ? [...initialFilteredTemplates] : [];
       }
     
     
       // If no templates match, return the full list
       if (filtered.length === 0) {
-        console.log("No templates matched the filters. Showing all templates.");
         filtered = allTemplates;
 
         if (!searchTerm.trim()) {
-          console.log("Search term is empty, resetting to initial filtered templates.");
           filtered = Array.isArray(allTemplates) ? [...allTemplates] : [];
         } 
       }
@@ -1863,11 +1829,8 @@ const fetchandapplytemplates = async () => {
 
   useEffect(() => {
     if (searchTerm.trim() === "") {
-      // Ensure we only set the initial filtered templates if it's not already set
       if (filteredTemplates.length !== initialFilteredTemplates.length) {
-        // setFilteredTemplates([...initialFilteredTemplates]);
         setFilteredTemplates(Array.isArray(initialFilteredTemplates) ? [...initialFilteredTemplates] : []);
-        // console.log('Reset to Initial Filtered Templates:', initialFilteredTemplates);
       }
       setCurrentPage(1); // Reset to first page
     } else {
@@ -1909,14 +1872,12 @@ const fetchandapplytemplates = async () => {
   // );
 
   useEffect(() => {
-    console.log('Filtered Templates:', filteredTemplates);
     const initialPaginatedTemplates = Array.isArray(filteredTemplates)
       ? filteredTemplates.slice(
           (currentPage - 1) * RECORDS_PER_PAGE,
           currentPage * RECORDS_PER_PAGE
         )
       : [];
-    console.log('Paginated Templates:', initialPaginatedTemplates);
     setPaginatedTemplates(initialPaginatedTemplates);
   }, [filteredTemplates, currentPage]);
   
@@ -1971,106 +1932,105 @@ const fetchandapplytemplates = async () => {
 
 
   useEffect(() => {
-    // Function to create a mapping from cleaned fields to original fields
+    // Function to create a mapping from original fields (without cleaning)
     const createFieldMapping = (fields) => {
+      console.log('Creating field mapping for fields:', fields);
       return fields.reduce((acc, field) => {
-        const parts = field.split(".");
-        const cleanedField = parts.length > 1 ? parts[1] : parts[0]; // Clean the field name
-        acc[cleanedField] = field; // Map cleaned field to the original
+        acc[field] = field; // Map the field to itself
+        console.log('Field:', field);
         return acc;
       }, {});
     };
-
-    // Function to strip object name prefixes from fields (e.g., 'deal.amount' -> 'amount')
-    const cleanFields = (fields) => {
-      return fields.map((field) => {
-        const parts = field.split(".");
-        console.log('Field:', field, 'Parts:', parts);
-        return parts.length > 1 ? parts[1] : parts[0];
-      });
-    };
-    
-
-    // Create mappings for globalfields and dynamicProperties
-    const fieldMapping = createFieldMapping(globalfields);
-    const dynamicFieldMapping = createFieldMapping(
-      Object.keys(dynamicProperties)
-    );
-
+  
+    // Create mappings for global fields and dynamicProperties
+    console.log("GlobalWatchFields before field mapping:", GlobalWatchFields);
+    const fieldMapping = GlobalWatchFields;
+    const dynamicFieldMapping = createFieldMapping(Object.keys(dynamicProperties));
+    console.log("dynamicFieldMapping:", dynamicFieldMapping);
+  
     const handlePropertiesUpdate = (updatedProperties) => {
-      // Handle updates for globalfields
-      if (globalfields && globalfields.length > 0) {
-        const hasRelevantChange = globalfields.some(
+      console.log('Updated properties received:', updatedProperties);
+  
+      // Handle updates for GlobalWatchFields
+      if (GlobalWatchFields && GlobalWatchFields.length > 0) {
+        const hasRelevantChange = GlobalWatchFields.some(
           (field) => updatedProperties[fieldMapping[field]]
         );
-        if (hasRelevantChange) {
-          // fetchPropertiesAndLoadConfig();
+        console.log('Has relevant change in GlobalWatchFields:', hasRelevantChange);
+  
+        if (hasRelevantChange && !hasInitialized.current) {
           if (
-            hasInitialized.current &&
             globalcategories.length > 0 &&
             Object.keys(crmProperties).length > 0
           ) {
+            console.log('Applying filterTemplates due to change in GlobalWatchFields');
             filterTemplates(
               fulltemplatelist,
               searchTerm,
-              globalfields,
+              GlobalWatchFields,
               globalcategories,
               crmProperties
             );
           }
         }
       }
-
+  
       // Handle updates for dynamicProperties
       const dynamicFieldsToWatch = Object.keys(dynamicProperties);
+      console.log('Dynamic fields to watch:', dynamicFieldsToWatch);
+  
       const hasDynamicChange = dynamicFieldsToWatch.some(
         (field) => updatedProperties[dynamicFieldMapping[field]]
       );
+      console.log('Has relevant change in dynamicProperties:', hasDynamicChange);
+  
       if (hasDynamicChange) {
         const updatedDynamicProps = dynamicFieldsToWatch.reduce(
           (acc, field) => {
             const originalField = dynamicFieldMapping[field];
             if (updatedProperties[originalField]) {
               acc[originalField] = updatedProperties[originalField]; // Use original field name
+              console.log('Updating dynamic property:', originalField, updatedProperties[originalField]);
             }
             return acc;
           },
           {}
         );
-
+  
         setDynamicProperties((prevProperties) => ({
           ...prevProperties,
           ...updatedDynamicProps,
         }));
-
+  
         console.log("Updated dynamic properties:", updatedDynamicProps);
       }
     };
-
-    // Combine the fields to watch from both arrays
-    const cleanedFieldsArray = cleanFields(globalfields);
-    console.log("cleanedFieldsArray", cleanedFieldsArray);
-    const cleanedDynamicFields = cleanFields(Object.keys(dynamicProperties));
-    const fieldsToWatch = [...cleanedFieldsArray, ...cleanedDynamicFields];
-
+  
+    // Combine the fields to watch from both GlobalWatchFields and dynamicProperties
+    const fieldsToWatch = [...GlobalWatchFields, ...Object.keys(dynamicProperties)];
+    console.log("fieldsToWatch:", fieldsToWatch);
+  
     if (fieldsToWatch.length > 0) {
+      console.log('Setting up properties update handler for fieldsToWatch');
       actions.onCrmPropertiesUpdate(fieldsToWatch, handlePropertiesUpdate);
     }
-
+  
     return () => {
+      console.log('Cleaning up properties update handler');
       actions.onCrmPropertiesUpdate([], null);
     };
   }, [
     context.crm.objectId,
     context.crm.objectTypeId,
     objectType,
-    globalfields,
+    GlobalWatchFields, // Updated here
     globalcategories,
     crmProperties,
     fulltemplatelist,
     searchTerm,
     dynamicProperties,
   ]);
+  
 
 
   const handleConnectToMarq = async (metadataType) => {
