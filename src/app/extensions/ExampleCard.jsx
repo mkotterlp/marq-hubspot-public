@@ -46,6 +46,7 @@ const Extension = ({ context, actions }) => {
   const [accountauthURL, setaccountauthurl] = useState("");
   const [templates, setTemplates] = useState([]);
   const [GlobalWatchFields, setGlobalWatchFields] = useState([]);
+  const [GlobalCategoryFilters, setGlobalCategoryFilters] = useState([]);
   const [paginatedTemplates, setPaginatedTemplates] = useState([]);
   const [allTemplates, setAllTemplates] = useState([]);
   const [fulltemplatelist, setfullTemplates] = useState([]);
@@ -289,8 +290,7 @@ const fetchObjectType = async () => {
         {
           method: "POST",
           body: {
-            objectTypeId: objectTypeId,
-            userId: userid, 
+            objectTypeId: context.crm.objectTypeId
           },
         }
       );
@@ -358,7 +358,7 @@ const fetchObjectPropertiesFromFields = async (fields) => {
       {
         method: "POST",
         body: {
-          objectId: objectId,       
+          objectId: context.crm.objectId,       
           objectType: objectType,  
           properties: fields    
         },
@@ -415,8 +415,7 @@ const applytemplates = async (fetchedTemplates) => {
       if (templatefilterslookupresult && typeof templatefilterslookupresult === 'object') {
         // Validate objectType (either passed or set globally)
         if (!objectType) {
-          console.error('objectType is not defined.');
-          return;
+          await fetchObjectType();
         }
 
         const pluralObjectType = `${objectType.toLowerCase()}s`; // e.g., "deal" -> "deals"
@@ -428,6 +427,7 @@ const applytemplates = async (fetchedTemplates) => {
         globalfields = filterEntries.map(entry => entry.formField); // Get formFields (e.g., 'industry', 'dealstage')
         setGlobalWatchFields(globalfields);
         globalcategories = filterEntries.map(entry => entry.categoryField.toLowerCase()); // Get categoryField (e.g., 'Industry', 'HS deal stage')
+        setGlobalCategoryFilters(globalcategories);
 
         // Now, fetch the properties based on the fields
         const propertiesBody = await fetchObjectPropertiesFromFields(globalfields);
@@ -533,6 +533,7 @@ const fetchandapplytemplates = async () => {
     if (fetchjsonResponse.ok) {
       const fetchjsonResponseBody = await fetchjsonResponse.json();
       const fetchedTemplates = fetchjsonResponseBody.Data.Data.body.templatesresponse;
+      setAllTemplates(fetchedTemplates);
       await applytemplates(fetchedTemplates);
       } else {
         console.error("Error with applying templates:", fetchjsonResponse);
@@ -1944,33 +1945,36 @@ const fetchandapplytemplates = async () => {
   
     // Create mappings for global fields and dynamicProperties
     console.log("GlobalWatchFields before field mapping:", GlobalWatchFields);
-    const fieldMapping = GlobalWatchFields;
-    const dynamicFieldMapping = createFieldMapping(Object.keys(dynamicProperties));
+    const fieldMapping = GlobalWatchFields.reduce((acc, field) => {
+      acc[field] = field; 
+      return acc;
+    }, {});
+    const dynamicFieldMapping = Object.keys(dynamicProperties).reduce((acc, field) => {
+      acc[field] = field;
+      return acc;
+    }, {});
     console.log("dynamicFieldMapping:", dynamicFieldMapping);
   
     const handlePropertiesUpdate = (updatedProperties) => {
       console.log('Updated properties received:', updatedProperties);
+      console.log('Field Mapping:', fieldMapping);
   
       // Handle updates for GlobalWatchFields
       if (GlobalWatchFields && GlobalWatchFields.length > 0) {
         const hasRelevantChange = GlobalWatchFields.some(
-          (field) => updatedProperties[fieldMapping[field]]
+          (field) => updatedProperties[field] !== undefined
         );
         console.log('Has relevant change in GlobalWatchFields:', hasRelevantChange);
-  
-        if (hasRelevantChange && !hasInitialized.current) {
-          if (
-            globalcategories.length > 0 &&
-            Object.keys(crmProperties).length > 0
-          ) {
+        console.log('globalcategories:', globalcategories);
+        if (hasRelevantChange && hasInitialized.current) {
+          if (GlobalCategoryFilters.length > 0) {
             console.log('Applying filterTemplates due to change in GlobalWatchFields');
-            filterTemplates(
-              fulltemplatelist,
-              searchTerm,
-              GlobalWatchFields,
-              globalcategories,
-              crmProperties
-            );
+            const processtemplates = async () => {
+              setIsLoading(true); 
+              await applytemplates(allTemplates);
+              setIsLoading(false); 
+            };
+            processtemplates();
           }
         }
       }
@@ -2022,9 +2026,8 @@ const fetchandapplytemplates = async () => {
   }, [
     context.crm.objectId,
     context.crm.objectTypeId,
-    objectType,
-    GlobalWatchFields, // Updated here
-    globalcategories,
+    GlobalWatchFields, 
+    GlobalCategoryFilters,
     crmProperties,
     fulltemplatelist,
     searchTerm,
@@ -2157,7 +2160,7 @@ const fetchandapplytemplates = async () => {
     );
   }
 
-  if (!templates.length && !isLoading && showTemplates) {
+  if (!filteredTemplates.length && !isLoading && showTemplates) {
     return (
       <EmptyState 
         title="No templates found" 
