@@ -431,6 +431,7 @@ const applytemplates = async (fetchedTemplates) => {
 
         // Now, fetch the properties based on the fields
         const propertiesBody = await fetchObjectPropertiesFromFields(globalfields);
+        console.log("propertiesBody", propertiesBody);
 
         if (globalfields.length && globalcategories.length && propertiesBody && Object.keys(propertiesBody).length > 0) {
           // Call filterTemplates here
@@ -533,6 +534,7 @@ const fetchandapplytemplates = async () => {
     if (fetchjsonResponse.ok) {
       const fetchjsonResponseBody = await fetchjsonResponse.json();
       const fetchedTemplates = fetchjsonResponseBody.Data.Data.body.templatesresponse;
+      console.log("fetchedTemplates", fetchedTemplates);
       setAllTemplates(fetchedTemplates);
       await applytemplates(fetchedTemplates);
       } else {
@@ -842,19 +844,11 @@ const fetchandapplytemplates = async () => {
         } 
       }
     
-      // **Handle Pagination Here**
-      const totalPages = Math.ceil(filtered.length / RECORDS_PER_PAGE);
-      const paginatedTemplates = filtered.slice(
-        (currentPage - 1) * RECORDS_PER_PAGE,
-        currentPage * RECORDS_PER_PAGE
-      );
-    
-    
-      // Update the state with paginated and filtered templates
-      setTemplates(filtered); // Set the entire filtered list for further use if needed
-      setPaginatedTemplates(paginatedTemplates); // Set only the paginated results
-      setTotalPages(totalPages); // Set the total number of pages
-      setCurrentPage(1); // Optionally reset to the first page
+
+  setTemplates(filtered); 
+  setFilteredTemplates(filtered);
+  setTotalPages(Math.ceil(filtered.length / RECORDS_PER_PAGE));
+  setCurrentPage(1); // Reset to first page
     };
     
 
@@ -1872,17 +1866,24 @@ const fetchandapplytemplates = async () => {
   //   currentPage * RECORDS_PER_PAGE
   // );
 
-  useEffect(() => {
-    const initialPaginatedTemplates = Array.isArray(filteredTemplates)
-      ? filteredTemplates.slice(
-          (currentPage - 1) * RECORDS_PER_PAGE,
-          currentPage * RECORDS_PER_PAGE
-        )
-      : [];
-    setPaginatedTemplates(initialPaginatedTemplates);
-  }, [filteredTemplates, currentPage]);
+useEffect(() => {
+  // This will update the total number of pages whenever filteredTemplates change
+  const pages = Math.ceil(filteredTemplates.length / RECORDS_PER_PAGE);
   
+  // Reset current page if it's greater than totalPages
+  if (currentPage > pages) {
+    setCurrentPage(1);
+  } else {
+    setTotalPages(pages); // Update total pages first
+    const newPaginatedTemplates = filteredTemplates.slice(
+      (currentPage - 1) * RECORDS_PER_PAGE,
+      currentPage * RECORDS_PER_PAGE
+    );
+    setPaginatedTemplates(newPaginatedTemplates); // Update paginated templates for display
+  }
+}, [filteredTemplates, currentPage]);
 
+  
 
 
 
@@ -1942,9 +1943,7 @@ const fetchandapplytemplates = async () => {
         return acc;
       }, {});
     };
-  
-    // Create mappings for global fields and dynamicProperties
-    console.log("GlobalWatchFields before field mapping:", GlobalWatchFields);
+
     const fieldMapping = GlobalWatchFields.reduce((acc, field) => {
       acc[field] = field; 
       return acc;
@@ -1953,19 +1952,12 @@ const fetchandapplytemplates = async () => {
       acc[field] = field;
       return acc;
     }, {});
-    console.log("dynamicFieldMapping:", dynamicFieldMapping);
-  
     const handlePropertiesUpdate = (updatedProperties) => {
-      console.log('Updated properties received:', updatedProperties);
-      console.log('Field Mapping:', fieldMapping);
-  
       // Handle updates for GlobalWatchFields
       if (GlobalWatchFields && GlobalWatchFields.length > 0) {
         const hasRelevantChange = GlobalWatchFields.some(
           (field) => updatedProperties[field] !== undefined
         );
-        console.log('Has relevant change in GlobalWatchFields:', hasRelevantChange);
-        console.log('globalcategories:', globalcategories);
         if (hasRelevantChange && hasInitialized.current) {
           if (GlobalCategoryFilters.length > 0) {
             console.log('Applying filterTemplates due to change in GlobalWatchFields');
@@ -1981,20 +1973,15 @@ const fetchandapplytemplates = async () => {
   
       // Handle updates for dynamicProperties
       const dynamicFieldsToWatch = Object.keys(dynamicProperties);
-      console.log('Dynamic fields to watch:', dynamicFieldsToWatch);
-  
       const hasDynamicChange = dynamicFieldsToWatch.some(
         (field) => updatedProperties[dynamicFieldMapping[field]]
-      );
-      console.log('Has relevant change in dynamicProperties:', hasDynamicChange);
-  
+      );  
       if (hasDynamicChange) {
         const updatedDynamicProps = dynamicFieldsToWatch.reduce(
           (acc, field) => {
             const originalField = dynamicFieldMapping[field];
             if (updatedProperties[originalField]) {
               acc[originalField] = updatedProperties[originalField]; // Use original field name
-              console.log('Updating dynamic property:', originalField, updatedProperties[originalField]);
             }
             return acc;
           },
@@ -2005,9 +1992,7 @@ const fetchandapplytemplates = async () => {
           ...prevProperties,
           ...updatedDynamicProps,
         }));
-  
-        console.log("Updated dynamic properties:", updatedDynamicProps);
-      }
+        }
     };
   
     // Combine the fields to watch from both GlobalWatchFields and dynamicProperties
