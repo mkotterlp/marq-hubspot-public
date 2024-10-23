@@ -565,6 +565,11 @@ const fetchandapplytemplates = async () => {
   };
 
   function formatDate(dateString) {
+    if (!dateString) {
+      return "Invalid Date"; // Return a default message or handle appropriately
+    }
+  
+    
     const options = {
       year: "numeric",
       month: "long",
@@ -574,16 +579,26 @@ const fetchandapplytemplates = async () => {
       hour12: true,
       timeZoneName: "short",
     };
+    
     const date = new Date(dateString);
-    return date.toLocaleString("en-US", options);
+    
+    if (isNaN(date.getTime())) {
+      return "Invalid Date"; // Return a default message or handle appropriately
+    }
+  
+    const formattedDate = date.toLocaleString("en-US", options);
+  
+    return formattedDate;
   }
+  
+  
 
   const cleanAndGroupProjectDetails = (projectDetails) => {
     const groupedProjects = {};
   
     projectDetails.forEach(project => {
       // Destructure only the relevant fields
-      const { dealstage, hubid, name, originaltemplateid, projectid, recordid, url } = project;
+      const { dealstage, hubid, name, originaltemplateid, projectid, recordid, fileurl, hs_lastmodifieddate, fileid } = project;
   
       // Ensure projectid exists and group by it
       if (projectid) {
@@ -594,7 +609,9 @@ const fetchandapplytemplates = async () => {
           originaltemplateid, 
           projectid, 
           recordid, 
-          url 
+          fileurl, 
+          hs_lastmodifieddate,
+          fileid,
         };
       }
     });
@@ -605,12 +622,14 @@ const fetchandapplytemplates = async () => {
 
   const fetchAssociatedProjectsAndDetails = useCallback(
     async () => {
+      
       if (!context.crm.objectId) {
         console.error("No object ID available to fetch associated projects.");
         return [];
       }
   
       try {
+        console.log("Fetching projects");
         const associatedProjectsResponse = await hubspot.fetch("https://marqembed.fastgenapp.com/fetch-projects2", {
           method: "POST",
           body: {
@@ -635,7 +654,8 @@ const fetchandapplytemplates = async () => {
             setProjects(detailedProjects);
             const totalPages = Math.ceil(detailedProjects.length / RECORDS_PER_PAGE);
             setTotalPages(totalPages);
-            
+            console.log("detailedProjects", detailedProjects);
+
             return detailedProjects;
           }
         } else {
@@ -659,6 +679,7 @@ const fetchandapplytemplates = async () => {
   
 
   const editClick = async (projectId, fileId, templateId) => {
+
     let editoriframeSrc = "https://info.marq.com/loading";
     actions.openIframeModal({
       uri: editoriframeSrc,
@@ -686,7 +707,7 @@ const fetchandapplytemplates = async () => {
         width: 1500,
         title: "Marq Editor",
       });
-   
+      setShouldPollForProjects({ isPolling: true, templateId: templateId });
   };
 
   const sendEmail = async (project) => {
@@ -732,45 +753,81 @@ const fetchandapplytemplates = async () => {
 
   const refreshProjects = async () => {
     console.log("Calling refresh projects");
-
+  
     if (!shouldPollForProjects.isPolling) {
       console.log("Polling stopped: shouldPollForProjects.isPolling is false in refreshProjects");
       return;
     }
-
-    let templateIdToMatch;
-
-    templateIdToMatch = shouldPollForProjects.templateId;
-
-    if (objectType && templateIdToMatch) {
+  
+    const templateIdToMatch = shouldPollForProjects.templateId;
+  
+    if (templateIdToMatch) {
       const projectsList = await fetchAssociatedProjectsAndDetails();
-
+      console.log("fetched projectsList from poll", projectsList);
+  
       // Check for matching project
       const matchingProject = projectsList.find(
         (project) => project.originaltemplateid === templateIdToMatch
       );
-
+  
       if (matchingProject) {
         console.log(`Found matching project for template ID: ${templateIdToMatch}`);
+  
+        // Stop polling and clear interval
         setShouldPollForProjects({ isPolling: false, templateId: null });
         setLoadingTemplateId(null);
-        templateIdToMatch = null;
+  
+        if (pollingTimerRef.current) {
+          clearTimeout(pollingTimerRef.current);
+          pollingTimerRef.current = null;  // Clear timer reference
+        }
+  
+        return; // Exit early after finding a match
+      }
+  
+      // Update the state to ensure `projects` reflects the latest data
+      setProjects(projectsList);
+    }
+  };
+  
+  
 
-        // Stop polling
+  useEffect(() => {
+    const pollingForProjects = async () => {
+      // Stop polling if isPolling is set to false
+      if (!shouldPollForProjects.isPolling) {
         if (pollingTimerRef.current) {
           clearTimeout(pollingTimerRef.current);
           pollingTimerRef.current = null;
         }
-
-        return;
+        return; // Exit polling loop
       }
-
-      // Update the state to ensure `projects` reflects the latest data
-      setProjects(projectsList);
-    } else {
-      // console.log("Object type not detected");
+  
+      if (shouldPollForProjects.isPolling && shouldPollForProjects.templateId) {
+        await refreshProjects();
+        
+        // Check again if polling should continue
+        if (shouldPollForProjects.isPolling) {  
+          pollingTimerRef.current = setTimeout(() => {
+            pollingForProjects();
+          }, 20000);
+        }
+      }
+    };
+  
+    if (shouldPollForProjects.isPolling && shouldPollForProjects.templateId) {
+      pollingForProjects();
     }
-  };
+  
+    return () => {
+      if (pollingTimerRef.current) {
+        clearTimeout(pollingTimerRef.current);
+        pollingTimerRef.current = null;
+      }
+    };
+  }, [shouldPollForProjects]);
+  
+  
 
 
   const updateData = async () => {
@@ -1032,6 +1089,8 @@ const fetchandapplytemplates = async () => {
     }
   };
 
+
+
   const handleClick = async (template) => {
     let iframeSrc = "https://info.marq.com/loading";
     actions.openIframeModal({
@@ -1073,10 +1132,16 @@ const fetchandapplytemplates = async () => {
             // Ensure projectId is extracted correctly
             projectId = projectData.id;
 
-            setCreatedProjects((prevProjects) => ({
-              ...prevProjects,
-              [template.id]: projectId,  // Track projectId by template id
-            }));
+const timestamp = new Date().toISOString();
+
+setCreatedProjects((prevProjects = {}) => ({
+  ...prevProjects,
+  [template.id]: {
+    projectId: projectId,
+    createdAt: timestamp,
+  },
+}));
+
 
             if (!projectId) {
               console.warn(
@@ -1207,33 +1272,7 @@ const fetchandapplytemplates = async () => {
   }, [isPolling]);
 
 
-  useEffect(() => {
-    const pollingForProjects = async () => {
-      if (shouldPollForProjects.isPolling && shouldPollForProjects.templateId) {
-        await refreshProjects();
-        pollingTimerRef.current = setTimeout(() => {
-          pollingForProjects();
-        }, 20000);
-      } else {
-        // Clear the timeout if polling should stop
-        clearTimeout(pollingTimerRef.current);
-        pollingTimerRef.current = null;
-      }
-    };
 
-    // Start polling only if shouldPollForProjects.isPolling is true
-    if (shouldPollForProjects.isPolling && shouldPollForProjects.templateId) {
-      pollingForProjects();
-    }
-
-    // Cleanup on component unmount or when shouldPollForProjects changes
-    return () => {
-      if (pollingTimerRef.current) {
-        clearTimeout(pollingTimerRef.current);
-        pollingTimerRef.current = null;
-      }
-    };
-  }, [shouldPollForProjects]);
 
 
   useEffect(() => {
@@ -1611,64 +1650,73 @@ useEffect(() => {
                     {formatDate(matchingProject.hs_lastmodifieddate)}
                   </TableCell>
                   <TableCell>
-                    <ButtonRow disableDropdown={false}>
-                      <Button
-                        onClick={() =>
-                          editClick(
-                            matchingProject.projectid,
-                            matchingProject.fileid,
-                            matchingProject.originaltemplateid
-                            )
-                        }
-                      >
-                        Open
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          console.log(
-                            "URL to be copied:",
-                            matchingProject.fileurl
-                          ); // Log the URL
-                          handleCopy(matchingProject.fileurl);
-                        }}
-                      >
-                        Copy Published URL
-                      </Button>
-                      <CrmActionButton
-                        actionType="EXTERNAL_URL"
-                        actionContext={{ href: matchingProject.fileurl }}
-                        variant="secondary"
-                      >
-                        Go to PDF
-                      </CrmActionButton>
-                      <CrmActionButton
-                        actionType="SEND_EMAIL"
-                        actionContext={{
-                          objectTypeId: context.crm.objectTypeId,
-                          objectId: context.crm.objectId,
-                        }}
-                        variant="secondary"
-                        onClick={() => {
-                          actions.addAlert({
-                            type: "info",
-                            message:
-                              "You can now send the email with the copied URL.",
-                          });
-                        }}
-                      >
-                        Send Email
-                      </CrmActionButton>
-                      <Button
-                        variant="destructive"
-                        onClick={() =>
-                          deleteRecord(matchingProject.projectid)
-                        }
-                      >
-                        Delete
-                      </Button>
-                    </ButtonRow>
-                  </TableCell>
+  <ButtonRow disableDropdown={false}>
+    {matchingProject.projectid && matchingProject.originaltemplateid && (
+      <Button
+        onClick={() =>
+          editClick(
+            matchingProject.projectid,
+            matchingProject.fileid,
+            matchingProject.originaltemplateid
+          )
+        }
+      >
+        Edit
+      </Button>
+    )}
+    
+    {matchingProject.fileurl && (
+      <>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            console.log("URL to be copied:", matchingProject.fileurl);
+            handleCopy(matchingProject.fileurl);
+          }}
+        >
+          Copy Published URL
+        </Button>
+
+        <CrmActionButton
+          actionType="EXTERNAL_URL"
+          actionContext={{ href: matchingProject.fileurl }}
+          variant="secondary"
+        >
+          Go to PDF
+        </CrmActionButton>
+      </>
+    )}
+    {matchingProject.fileurl && (
+
+    <CrmActionButton
+      actionType="SEND_EMAIL"
+      actionContext={{
+        objectTypeId: context.crm.objectTypeId,
+        objectId: context.crm.objectId,
+      }}
+      variant="secondary"
+      onClick={() => {
+        actions.addAlert({
+          type: "info",
+          message: "You can now send the email with the copied URL.",
+        });
+      }}
+    >
+      Send Email
+    </CrmActionButton>
+     )}
+
+    {matchingProject.projectid && (
+      <Button
+        variant="destructive"
+        onClick={() => deleteRecord(matchingProject.projectid)}
+      >
+        Delete
+      </Button>
+    )}
+  </ButtonRow>
+</TableCell>
+
                 </TableRow>
               ) : (
                 <TableRow
@@ -1680,13 +1728,15 @@ useEffect(() => {
                   <TableCell>
                   <Image
                       alt="Template Preview"
-                      src={`https://app.marq.com/documents/thumb/${template.id}/0/2048/NULL/400`}
-                      onClick={() => {
+                      src={`https://app.marq.com/documents/thumb/${
+                        createdProjects[template.id]?.projectId || template.id
+                      }/0/2048/NULL/400`}
+                        onClick={() => {
                         if (createdProjects[template.id]) {
-                          editClick(createdProjects[template.id], template.id, template.id);
+                          editClick(createdProjects[template.id].projectId, template.id, template.id);
                         } else {
                           handleClick(template).then(() => {
-                            setShouldPollForProjects({ isPolling: true, templateId: template.id });
+                            // setShouldPollForProjects({ isPolling: true, templateId: template.id });
                           });
                         }
                       }}
@@ -1699,10 +1749,10 @@ useEffect(() => {
                         href="#"
                         onClick={() => {
                           if (createdProjects[template.id]) {
-                            editClick(createdProjects[template.id], template.id, template.id);
+                            editClick(createdProjects[template.id].projectId, template.id, template.id);
                           } else {
                             handleClick(template).then(() => {
-                              setShouldPollForProjects({ isPolling: true, templateId: template.id });
+                              // setShouldPollForProjects({ isPolling: true, templateId: template.id });
                             });
                           }
                         }}
@@ -1712,42 +1762,58 @@ useEffect(() => {
                         {template.title}
                       </Link>
                     </TableCell>
-
-                  <TableCell />
+                    <TableCell>
+                    {createdProjects[template.id]?.createdAt 
+  ? formatDate(createdProjects[template.id].createdAt) 
+  : ""}
+</TableCell>
                   <TableCell>
-  <Button
-    size="medium"
-    onClick={() => {
-      if (createdProjects[template.id]) {
-        // If the project is already created, call editClick
-        editClick(createdProjects[template.id], template.id, template.id);
-      } else {
+  {createdProjects[template.id] ? (
+    <ButtonRow disableDropdown={false}>
+      <Button
+        size="medium"
+        onClick={() => {
+          // If the project is already created, call editClick
+          editClick(createdProjects[template.id].projectId, template.id, template.id);
+        }}
+      >
+        Edit
+      </Button>
+        
+      <Button
+        variant="destructive"
+        onClick={() => {
+          // Call deleteRecord and remove it from createdProjects state
+          deleteRecord(template.id);
+          setCreatedProjects((prevProjects) => {
+            const updatedProjects = { ...prevProjects };
+            delete updatedProjects[template.id]; // Remove from state
+            return updatedProjects;
+          });
+        }}
+      >
+        Delete
+      </Button>
+    </ButtonRow>
+  ) : (
+    <Button
+      size="medium"
+      onClick={() => {
         // Create the project and then poll for it
         setLoadingTemplateId(template.id);
         handleClick(template).then(() => {
-          setShouldPollForProjects({
-            isPolling: true,
-            templateId: template.id,
-          });
+          // setShouldPollForProjects({
+          //   isPolling: true,
+          //   templateId: template.id,
+          // });
         });
-      }
-    }}
-  >
-    {createdProjects[template.id] ? "Edit" : "Create"}
-  </Button>
-  
-  {createdProjects[template.id] && (
-    <Button
-      variant="destructive"
-      size="medium"
-      onClick={() => {
-        deleteRecord(createdProjects[template.id]);
       }}
     >
-      Delete
+      Create
     </Button>
   )}
 </TableCell>
+
 
                 </TableRow>
               );
