@@ -62,10 +62,8 @@ const Extension = ({ context, actions }) => {
   let globalcategories = [];
   let globalfields = [];
   let propertiesBody = {};
-  let marqAccountId = "";
   let collectionid = "";
   let datasetid = "";
-  let accountResponseBody = {};
   let schema = [
     { name: "Id", fieldType: "STRING", isPrimary: true, order: 1 },
     {
@@ -110,6 +108,7 @@ const Extension = ({ context, actions }) => {
       await fetchAssociatedProjectsAndDetails();
       await fetchandapplytemplates();
       fetchembedoptions();
+      fetchcustomdatafields();
       setShowTemplates(true);  // Trigger to show templates
   } else {
       console.log("User is not initialized. Hiding templates...");
@@ -155,6 +154,34 @@ useEffect(() => {
     console.log("Context is not available yet.");
   }
 }, [context]);
+
+
+const fetchcustomdatafields = async () => {
+  try {
+    const customdatafieldslookup = await hubspot.fetch(
+      "https://marqembed.fastgenapp.com/marq-custom-data-lookup",
+      {
+        method: "POST",
+        body: {}
+      }
+    );
+
+    if (customdatafieldslookup.ok) {
+      // Parse the response body as JSON
+      const customdatafieldslookupResponseBody = await customdatafieldslookup.json();
+      const customdatafieldsresult = customdatafieldslookupResponseBody.response.datafields;
+      const customdatafields = JSON.parse(customdatafieldsresult);
+      console.log("customdatafields", customdatafields);
+
+
+
+    } else {
+      console.error(`Error fetching custom data fields table: ${customdatafieldslookup.status} - ${customdatafieldslookup.statusText}`);
+    }
+  } catch (error) {
+    console.error("Error in fetching custom data fields:", error);
+  }
+};
 
 
 const fetchembedoptions = async () => {
@@ -310,29 +337,6 @@ const fetchObjectPropertiesFromFields = async (fields) => {
     console.error('Error fetching object properties:', error);
     return [];
   }
-};
-
-
-const getObjectProperties = async (template, categoryField, formField) => {
-  const matchingCategory = template.categories.find(
-    (category) => category.category_name.toLowerCase() === categoryField.toLowerCase()
-  );
-
-  if (matchingCategory) {
-    const objectType = template.objectType || null;
-    const objectId = template.objectId || null;
-
-    if (objectType && objectId) {
-      const properties = await fetchObjectProperties(objectType, objectId);
-      return {
-        objectType,
-        objectId,
-        properties,
-      };
-    }
-  }
-
-  return null;
 };
 
 const applytemplates = async (fetchedTemplates) => {
@@ -710,26 +714,6 @@ const fetchandapplytemplates = async () => {
       setShouldPollForProjects({ isPolling: true, templateId: templateId });
   };
 
-  const sendEmail = async (project) => {
-    try {
-      const response = await hubspot.fetchFunction({
-        name: "generateEmailContent",
-        parameters: { project },
-      });
-
-      if (response && response.emailContent) {
-        const emailContent = response.emailContent;
-        // Open the email composition window with the generated content
-        actions.openEmailComposeWindow({
-          to: project.contactEmail,
-          subject: `Details for project ${project.name}`,
-          body: emailContent,
-        });
-      }
-    } catch (error) {
-      console.error("Failed to generate email content:", error);
-    }
-  };
 
   const extractFiltersFromProperties = (
     globalfields,
@@ -1461,74 +1445,7 @@ useEffect(() => {
     }
   };
   
-  
-  
 
-  // UPDATED createOrUpdateDataset FUNCTION v3
-  const createOrUpdateDataset = async () => {
-  
-    try {
-      // Check if the dataset already exists
-      const checkDatasetResponse = await hubspot.fetch({
-        name: "fetchAccountTable",
-        parameters: { objectType: objectType, userId: userid }, // Include userId in the parameters
-      });
-  
-      accountResponseBody = JSON.parse(checkDatasetResponse.response.body);
-  
-      const accountData = accountResponseBody?.dataRow?.values || {};
-      const matchedData = accountResponseBody?.objectTypeRow?.values || {};
-  
-      const marqAccountId = accountData?.accountId || null;
-      datasetid = matchedData?.datasetid || null;
-      collectionid = matchedData?.collectionid || null;
-  
-      if (datasetid && collectionid) {
-        return; // Dataset already exists, exit
-      } else {
-        // Call the createDataset serverless function
-        const createDatasetResponse = await hubspot.fetch({
-          name: "createDataset",
-          parameters: {
-            marqAccountId: marqAccountId,
-            objectName: objectType,
-            schema: schema.map((item) => ({
-              ...item,
-              fieldType: item.fieldType.toString(), // Ensure fieldType is a string
-            })),
-          },
-        });
-  
-        // Handle successful creation of the dataset
-        if (createDatasetResponse?.response?.statusCode === 200) {
-          const datasetResult = JSON.parse(createDatasetResponse.response.body);
-          datasetid = datasetResult.dataSourceId;
-          collectionid = datasetResult.collectionId;
-
-          await hubspot.fetch(
-            "https://marqembed.fastgenapp.com/update-dataset",
-            {
-              method: "POST",
-              body: {
-                objectType: objectType,
-                datasetId: datasetid,
-                collectionId: collectionid,
-                userId: userid,
-                    }
-            },);
-        } else {
-          console.error(
-            `Failed to create dataset for ${objectType}:`,
-            createDatasetResponse?.response?.body
-          );
-  
-          throw new Error("Failed to create dataset.");
-        }
-      }
-    } catch (error) {
-      console.error("Error in createOrUpdateDataset:", error.message);
-    }
-  };
   
 
   const handleCopy = async (text) => {
