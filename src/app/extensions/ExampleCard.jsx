@@ -110,7 +110,7 @@ const Extension = ({ context, actions }) => {
       fetchcustomdatafields();
       setShowTemplates(true);  // Trigger to show templates
   } else {
-      console.log("User is not initialized. Hiding templates...");
+      console.warn("User is not initialized. Hiding templates...");
       setIsLoading(false);
       setShowMarqUserButton(true);
       setShowTemplates(false);  // Hide templates or take other actions
@@ -183,10 +183,12 @@ const fetchcustomdatafields = async () => {
       const customdatafieldslookupResponseBody = await customdatafieldslookup.json();
       const customdatafields = customdatafieldslookupResponseBody.response;
       console.log("customdatafields", customdatafields);
-      setDynamicProperties(customdatafields);
 
       if (customdatafields.length > 0) {
-        await updateData();
+
+        const customdatafieldsvaluepairs = await fetchObjectPropertiesFromFields(customdatafields);
+        console.log("customdatafieldsvaluepairs", customdatafieldsvaluepairs)
+        setDynamicProperties(customdatafieldsvaluepairs);
       }
 
     } else {
@@ -196,6 +198,12 @@ const fetchcustomdatafields = async () => {
     console.error("Error in fetching custom data fields:", error);
   }
 };
+
+useEffect(() => {
+  if (Object.keys(dynamicProperties).length > 0) {
+    updateData();
+  }
+}, [dynamicProperties]);
 
 
 const fetchembedoptions = async () => {
@@ -389,9 +397,11 @@ const applytemplates = async (fetchedTemplates) => {
         globalcategories = filterEntries.map(entry => entry.categoryField.toLowerCase()); // Get categoryField (e.g., 'Industry', 'HS deal stage')
         setGlobalCategoryFilters(globalcategories);
 
-        // Now, fetch the properties based on the fields
+        let propertiesBody = [];
+        if (globalfields.length > 0) {
         const propertiesBody = await fetchObjectPropertiesFromFields(globalfields);
         console.log("propertiesBody", propertiesBody);
+        } 
 
         if (globalfields.length && globalcategories.length && propertiesBody && Object.keys(propertiesBody).length > 0) {
           // Call filterTemplates here
@@ -844,17 +854,19 @@ const fetchandapplytemplates = async () => {
       });
   
       if (response.ok) {
-        const data = await response.json();
-        setLineitemProperties(data.lineItems || []);
+        const lineitemsresponse = await response.json();
+        const data = lineitemsresponse.Data.Data.body.lineItemDetails;
+        return data || []; // Return the fetched data
       } else {
         console.error('Failed to fetch line item properties:', response.statusText);
+        return []; // Return an empty array in case of an error
       }
     } catch (error) {
       console.error('Error fetching line item properties:', error);
+      return []; // Return an empty array in case of an error
     }
   };
   
- 
 
 
   const updateData = async () => {
@@ -914,6 +926,7 @@ const fetchandapplytemplates = async () => {
 
           // Check if the periodValue is in the expected format and contains "M"
           if (
+
             periodValue &&
             typeof periodValue === "string" &&
             periodValue.startsWith("P") &&
@@ -957,99 +970,48 @@ const fetchandapplytemplates = async () => {
         }
 
 
-        // Only process line items if the objectType is 'DEAL'
         if (objectType === "DEAL") {
-
           console.log("ObjectType is DEAL. Fetching line item properties...");
-
+        
           // Fetch line item properties directly within updateData
-          await fetchLineItemProperties();
+          const lineitemProperties = await fetchLineItemProperties();
           console.log("Fetched line item properties:", lineitemProperties);
-      
+        
           const numberOfLineItems = Math.min(10, lineitemProperties.length); // Allow up to 10 line items
           console.log("Number of line items to process:", numberOfLineItems);
-
+        
           if (lineitemProperties.length > 0) {
-          for (let i = 0; i < 10; i++) {
-            // Check if the line item exists
-            const lineItem = lineitemProperties[i] || null;
-
-            if (lineItem) {
-              // If the line item exists, populate the properties with real values
-              Object.keys(lineItem.properties).forEach((propertyKey) => {
-                const dynamicFieldName = `lineitem${i + 1}.${propertyKey}`;
-
-                // Check if the property is a currency-related field
-                if (
-                  [
-                    "price",
-                    "discount",
-                    "tax",
-                    "amount",
-                    "hs_cost_of_goods_sold",
-                  ].includes(propertyKey)
-                ) {
-                  updatedProperties[dynamicFieldName] =
-                    !isNaN(lineItem.properties[propertyKey]) &&
-                    lineItem.properties[propertyKey] !== null
-                      ? formatCurrency(lineItem.properties[propertyKey])
-                      : lineItem.properties[propertyKey] || "";
-                } else {
-                  updatedProperties[dynamicFieldName] =
-                    typeof lineItem.properties[propertyKey] === "string"
-                      ? capitalizeFirstLetter(lineItem.properties[propertyKey])
-                      : lineItem.properties[propertyKey] || "";
-                }
-
-                // Add the property to the schema, capitalize the first letter of the propertyKey
-                updatedSchema.push({
-                  name: dynamicFieldName,
-                  fieldType: "STRING",
-                  isPrimary: false,
-                  order: updatedSchema.length + 1,
-                });
-              });
-
-              const endDateFieldName = `lineitem${i + 1}.recurring_billing_end_date`;
-
-              // Add calculated recurring_billing_end_date to the properties and schema if hs_recurring_billing_period exists
-              if (lineItem.properties.recurringbillingfrequency) {
-                const recurringBillingEndDate =
-                  calculateRecurringBillingEndDate(
-                    lineItem.properties.hs_recurring_billing_period,
-                    lineItem.properties.hs_recurring_billing_start_date,
-                    lineItem.properties.term__years_
-                  );
-                updatedProperties[endDateFieldName] = recurringBillingEndDate;
-              } else {
-                updatedProperties[endDateFieldName] = ""; // Set a blank value if it's missing
-              }
-
-              // Check if recurringbillingfrequency exists, if not, set to "One-time"
-              if (
-                !lineItem.properties.recurringbillingfrequency ||
-                lineItem.properties.recurringbillingfrequency.trim() === ""
-              ) {
-                updatedProperties[
-                  `lineitem${i + 1}.recurringbillingfrequency`
-                ] = "One-time";
-              }
-
-              updatedSchema.push({
-                name: endDateFieldName,
-                fieldType: "STRING",
-                isPrimary: false,
-                order: updatedSchema.length + 1,
-              });
-            } else {
-              // If the line item doesn't exist, populate the schema with real property names but set values to ""
-              Object.keys(lineitemProperties[0].properties).forEach(
-                (propertyKey) => {
+            for (let i = 0; i < 10; i++) {
+              // Check if the line item exists
+              const lineItem = lineitemProperties[i] || null;
+        
+              if (lineItem) {
+                // If the line item exists, populate the properties with real values
+                Object.keys(lineItem.properties).forEach((propertyKey) => {
                   const dynamicFieldName = `lineitem${i + 1}.${propertyKey}`;
-
-                  // Set value to "" for missing line items
-                  updatedProperties[dynamicFieldName] = "";
-
+        
+                  // Check if the property is a currency-related field
+                  if (
+                    [
+                      "price",
+                      "discount",
+                      "tax",
+                      "amount",
+                      "hs_cost_of_goods_sold",
+                    ].includes(propertyKey)
+                  ) {
+                    updatedProperties[dynamicFieldName] =
+                      !isNaN(lineItem.properties[propertyKey]) &&
+                      lineItem.properties[propertyKey] !== null
+                        ? formatCurrency(lineItem.properties[propertyKey])
+                        : lineItem.properties[propertyKey] || "";
+                  } else {
+                    updatedProperties[dynamicFieldName] =
+                      typeof lineItem.properties[propertyKey] === "string"
+                        ? capitalizeFirstLetter(lineItem.properties[propertyKey])
+                        : lineItem.properties[propertyKey] || "";
+                  }
+        
                   // Add the property to the schema, capitalize the first letter of the propertyKey
                   updatedSchema.push({
                     name: dynamicFieldName,
@@ -1057,22 +1019,68 @@ const fetchandapplytemplates = async () => {
                     isPrimary: false,
                     order: updatedSchema.length + 1,
                   });
+                });
+        
+                const endDateFieldName = `lineitem${i + 1}.recurring_billing_end_date`;
+        
+                // Add calculated recurring_billing_end_date to the properties and schema if hs_recurring_billing_period exists
+                if (lineItem.properties.recurringbillingfrequency) {
+                  const recurringBillingEndDate = calculateRecurringBillingEndDate(
+                    lineItem.properties.hs_recurring_billing_period,
+                    lineItem.properties.hs_recurring_billing_start_date,
+                    lineItem.properties.term__years_
+                  );
+                  updatedProperties[endDateFieldName] = recurringBillingEndDate;
+                } else {
+                  updatedProperties[endDateFieldName] = ""; // Set a blank value if it's missing
                 }
-              );
-
-              // Add a blank recurring_billing_end_date to the properties and schema for missing line items
-              const endDateFieldName = `lineitem${i + 1}.recurring_billing_end_date`;
-              updatedProperties[endDateFieldName] = ""; // No value as the line item is missing
-              updatedSchema.push({
-                name: endDateFieldName,
-                fieldType: "STRING",
-                isPrimary: false,
-                order: updatedSchema.length + 1,
-              });
+        
+                // Check if recurringbillingfrequency exists, if not, set to "One-time"
+                if (
+                  !lineItem.properties.recurringbillingfrequency ||
+                  lineItem.properties.recurringbillingfrequency.trim() === ""
+                ) {
+                  updatedProperties[`lineitem${i + 1}.recurringbillingfrequency`] =
+                    "One-time";
+                }
+        
+                updatedSchema.push({
+                  name: endDateFieldName,
+                  fieldType: "STRING",
+                  isPrimary: false,
+                  order: updatedSchema.length + 1,
+                });
+              } else {
+                // If the line item doesn't exist, populate the schema with real property names but set values to ""
+                Object.keys(lineitemProperties[0].properties).forEach((propertyKey) => {
+                  const dynamicFieldName = `lineitem${i + 1}.${propertyKey}`;
+        
+                  // Set value to "" for missing line items
+                  updatedProperties[dynamicFieldName] = "";
+        
+                  // Add the property to the schema, capitalize the first letter of the propertyKey
+                  updatedSchema.push({
+                    name: dynamicFieldName,
+                    fieldType: "STRING",
+                    isPrimary: false,
+                    order: updatedSchema.length + 1,
+                  });
+                });
+        
+                // Add a blank recurring_billing_end_date to the properties and schema for missing line items
+                const endDateFieldName = `lineitem${i + 1}.recurring_billing_end_date`;
+                updatedProperties[endDateFieldName] = ""; // No value as the line item is missing
+                updatedSchema.push({
+                  name: endDateFieldName,
+                  fieldType: "STRING",
+                  isPrimary: false,
+                  order: updatedSchema.length + 1,
+                });
+              }
             }
           }
         }
-        }
+        
 
         // Iterate over dynamicProperties and add them to updatedSchema
         Object.keys(dynamicProperties).forEach((propertyKey) => {
@@ -1100,9 +1108,6 @@ const fetchandapplytemplates = async () => {
         updatedProperties["Marq User Restriction"] = context.user.email;
 
         console.log("updatedProperties", updatedProperties);
-
-        // Call update-data3 function
-        console.log("Starting updateData4");
 
         try {
  
@@ -1163,7 +1168,7 @@ const fetchandapplytemplates = async () => {
 
             const createProjectResponseBody = await createProjectResponse.json();
             const projectData = createProjectResponseBody?.project_info || {};
-                        console.log("Project created successfully:", projectData);
+            console.log("Project created successfully:", projectData);
 
             // Ensure projectId is extracted correctly
             projectId = projectData.id;
@@ -1411,7 +1416,6 @@ useEffect(() => {
         );
         if (hasRelevantChange && hasInitialized.current) {
           if (GlobalCategoryFilters.length > 0) {
-            console.log('Applying filterTemplates due to change in GlobalWatchFields');
             const processtemplates = async () => {
               setIsLoading(true); 
               await applytemplates(allTemplates);
@@ -1439,10 +1443,10 @@ useEffect(() => {
           {}
         );
   
-        // setDynamicProperties((prevProperties) => ({
-        //   ...prevProperties,
-        //   ...updatedDynamicProps,
-        // }));
+        setDynamicProperties((prevProperties) => ({
+          ...prevProperties,
+          ...updatedDynamicProps,
+        }));
         }
     };
   
@@ -1456,12 +1460,8 @@ useEffect(() => {
       actions.onCrmPropertiesUpdate([], null);
     };
   }, [
-    context.crm.objectId,
-    context.crm.objectTypeId,
     GlobalWatchFields, 
     GlobalCategoryFilters,
-    fulltemplatelist,
-    searchTerm,
     dynamicProperties,
   ]);
   
