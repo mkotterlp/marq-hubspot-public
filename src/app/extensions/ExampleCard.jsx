@@ -1,27 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"; 
-import {
-  LoadingButton,
-  EmptyState,
-  Flex,
-  Box,
-  Image,
-  Input,
-  Link,
-  Button,
-  ButtonRow,
-  Table,
-  Form,
-  TableCell,
-  TableBody,
-  TableRow,
-  Text,
-  Divider,
-  LoadingSpinner,
-  hubspot,
-} from "@hubspot/ui-extensions";
-import {
-  CrmActionButton
-} from "@hubspot/ui-extensions/crm";
+import { LoadingButton, EmptyState, Flex, Box, Image, Input, Link, Button, ButtonRow, Table, Form, TableCell, TableBody, TableRow, Text, Divider, LoadingSpinner, hubspot, } from "@hubspot/ui-extensions";
+import { CrmActionButton } from "@hubspot/ui-extensions/crm";
 
 hubspot.extend((extensionContext) => {
   return (
@@ -33,32 +12,25 @@ hubspot.extend((extensionContext) => {
 });
 
 const Extension = ({ context, actions }) => {
-  const [iframeUrl, setIframeUrl] = useState("");
   const [constobjectType, setconstobjectType] = useState("");
   const [processedembedoptions, setprocessedembedoptions] = useState("");
   const [isPolling, setIsPolling] = useState(false);
-  const [isAccountPolling, setAccountIsPolling] = useState(false);
   const [loadingTemplateId, setLoadingTemplateId] = useState(null);
-  const [ShowMarqAccountButton, setShowMarqAccountButton] = useState(false);
   const [ShowMarqUserButton, setShowMarqUserButton] = useState(false);
   const [showTemplates, setShowTemplates] = useState(true);
   const [userauthURL, setuserauthurl] = useState("");
-  const [accountauthURL, setaccountauthurl] = useState("");
   const [templates, setTemplates] = useState([]);
   const [GlobalWatchFields, setGlobalWatchFields] = useState([]);
   const [GlobalCategoryFilters, setGlobalCategoryFilters] = useState([]);
   const [paginatedTemplates, setPaginatedTemplates] = useState([]);
   const [allTemplates, setAllTemplates] = useState([]);
+  const [createdProjects, setCreatedProjects] = useState({});
   const [fulltemplatelist, setfullTemplates] = useState([]);
   const [dynamicProperties, setDynamicProperties] = useState({});
   const [lineitemProperties, setLineitemProperties] = useState({});
-  const [isIframeOpen, setIframeOpen] = useState(false);
   const [title, setTitle] = useState("Relevant Content");
   const [stageName, setStage] = useState("");
-  const [propertiesToWatch, setpropertiesToWatch] = useState([]);
   const [initialFilteredTemplates, setInitialFilteredTemplates] = useState([]);
-  const [config, setConfig] = useState({});
-  const [dataArray, setDataArray] = useState([]);
   const [projects, setProjects] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({
@@ -66,26 +38,17 @@ const Extension = ({ context, actions }) => {
     direction: "none",
   });
   const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
   const [filteredTemplates, setFilteredTemplates] = useState([]);
   const [totalPages, setTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [dataFetched, setDataFetched] = useState(false);
-  const [iframeLoading, setIframeLoading] = useState(false);
   const [selectedRow, setSelectedRow] = useState(null);
-  const [lastModifiedDate, setLastModifiedDate] = useState("");
   const hasInitialized = useRef(false);
   const RECORDS_PER_PAGE = 10;
-  const [hoveredRow, setHoveredRow] = useState(null);
-  const [crmProperties, setCrmProperties] = useState({});
   const [shouldPollForProjects, setShouldPollForProjects] = useState({
     isPolling: false,
     templateId: null,
   });
-  const [prevProjectCount, setPrevProjectCount] = useState(0);
-  const previousProjectCountRef = useRef(projects.length);
   const pollingTimerRef = useRef(null);
-  const hasSyncedOnceRef = useRef(false);
 
   let objectId = "";
   let objectTypeId = "";
@@ -99,7 +62,6 @@ const Extension = ({ context, actions }) => {
   let globalcategories = [];
   let globalfields = [];
   let propertiesBody = {};
-  let configData = {};
   let marqAccountId = "";
   let collectionid = "";
   let datasetid = "";
@@ -119,12 +81,6 @@ const Extension = ({ context, actions }) => {
     const authorizationUrlResponse = await handleConnectToMarq("user");
     const userauth = authorizationUrlResponse?.authorization_url;
     setuserauthurl(userauth);
-    
-    // const accountauthorizationUrlResponse = await handleConnectToMarq("data");
-    // const accountauth = accountauthorizationUrlResponse?.authorization_url;
-    // setaccountauthurl(accountauth);
-    
-
 
     if (!hasInitialized.current && objectType) {
         hasInitialized.current = true;
@@ -144,45 +100,23 @@ const Extension = ({ context, actions }) => {
         if (marqlookup.ok) {
             // Parse the response body as JSON
             const marqlookupResponseBody = await marqlookup.json();
-            const accounttableresult = marqlookupResponseBody.accounttableresult;
             const usertableresult = marqlookupResponseBody.usertableresult;
-            const datatableresult = marqlookupResponseBody.datatableresult;
 
             // Take actions based on the value of marquserinitialized
     if (usertableresult) {
       lasttemplatesyncdate = usertableresult.lasttemplatesyncdate ?? null;
       templatesfeed = usertableresult.templatesfeed ?? null;
       marquserinitialized = true;
-
-      setShowTemplates(true);  // Trigger to show templates
-      fetchandapplytemplates();
+      await fetchAssociatedProjectsAndDetails();
+      await fetchandapplytemplates();
       fetchembedoptions();
-      // fetchAssociatedProjectsAndDetails(objectType);
+      setShowTemplates(true);  // Trigger to show templates
   } else {
       console.log("User is not initialized. Hiding templates...");
       setIsLoading(false);
       setShowMarqUserButton(true);
       setShowTemplates(false);  // Hide templates or take other actions
   } 
-
-//   if (accounttableresult) {
-//     console.log("Account is initialized.");
-//     marqaccountinitialized = true;
-
-//     if (datatableresult) {
-//       console.log("Data is initialized.");
-//       await fetchMarqAccountData();  // Fetch account data if needed
-//   } else {
-//       console.log("Data is not initialized");
-//   } 
-
-// } else {
-//     console.log("Account is not initialized. Showing account button...");
-//     setIsLoading(false);
-//     setShowMarqAccountButton(true);
-// } 
-
-
         
         } else {
             // Log the status and status text for error debugging
@@ -199,8 +133,7 @@ const Extension = ({ context, actions }) => {
             fulltemplatelist,
             searchTerm,
             globalfields,
-            globalcategories,
-            crmProperties
+            globalcategories
         );
     }
 };
@@ -544,257 +477,6 @@ const fetchandapplytemplates = async () => {
   setIsLoading(false); // Stop loading regardless of success or error
 };
 
-
-
-
-      // // Fetch config data from 'hubdbHelper'
-      // try {
-
-      //   const configDataResponse = await hubspot.fetch(
-      //     "https://marqembed.fastgenapp.com/hubdb-helper",
-      //     {
-      //       method: "POST",
-      //       headers: {
-      //         'Content-Type': 'application/json',
-      //       },
-      //       body: JSON.stringify({
-      //         objectType: objectType,
-      //         userId: userid,
-      //       }),
-      //     }
-      //   );
-        
-
-      //   if (configDataResponse?.response?.body) {
-      //     configData =
-      //       JSON.parse(configDataResponse.response.body).values || {};
-      //     const fields =
-      //       configData.textboxFields?.split(",").map((field) => field.trim()) ||
-      //       [];
-      //     const filters =
-      //       configData.textboxFilters
-      //         ?.split(",")
-      //         .map((filter) => filter.trim()) || [];
-      //     const dataFields =
-      //       configData.dataFields?.split(",").map((field) => field.trim()) ||
-      //       [];
-      //     setFieldsArray(fields);
-      //     setFiltersArray(filters);
-      //     setDataArray(dataFields);
-
-      //     // Log dataFields for debugging
-      //     console.log("Pulled dataFields:", dataFields);
-
-      //     const propertiesToWatch = configData.textboxFields
-      //       ? configData.textboxFields.split(",").map((field) => field.trim())
-      //       : [];
-      //     setpropertiesToWatch(propertiesToWatch);
-
-      //     // Fetch CRM properties if fields are available
-      //     if (fields.length > 0) {
-      //       try {
-
-      //         const propertiesResponse = await fetch(
-      //           "https://marqembed.fastgenapp.com/get-object-properties", 
-      //         {
-      //           method: "POST", // Ensure you use the correct HTTP method, assuming POST
-      //           headers: {
-      //             "Content-Type": "application/json"
-      //           },
-      //           body: {
-      //             objectId: context.crm.objectId,
-      //             objectType: objectType,
-      //             properties: fields,
-      //             userId: userid // Include userId in the parameters
-      //           }
-      //         });
-
-      //         if (propertiesResponse?.response?.body) {
-      //           propertiesBody =
-      //             JSON.parse(propertiesResponse.response.body)
-      //               .mappedProperties || {};
-      //           console.log("Fetched CRM Properties:", propertiesBody);
-      //           if (objectType === "DEAL") {
-      //             setStage(propertiesBody.dealstage);
-      //           }
-      //         } else {
-      //           console.error(
-      //             "Failed to fetch CRM properties:",
-      //             propertiesResponse
-      //           );
-      //         }
-      //       } catch (propertiesError) {
-      //         console.error(
-      //           "Error occurred while fetching CRM properties:",
-      //           propertiesError
-      //         );
-      //       }
-      //     }
-
-      //     // Group dynamic fields by their object types (parsed from dataFields)
-      //     const objectTypeFieldsMap = {};
-
-      //     // Dynamically group dataFields by their object types (e.g., deal, contact, etc.)
-      //     dataFields.forEach((dataField) => {
-      //       const parts = dataField.split("."); // Split the dataField
-      //       if (parts.length === 2) {
-      //         const [objectType, field] = parts;
-      //         if (!objectTypeFieldsMap[objectType]) {
-      //           objectTypeFieldsMap[objectType] = [];
-      //         }
-      //         objectTypeFieldsMap[objectType].push(field);
-      //       } else if (parts.length === 1) {
-      //         // Handle fields without an explicit objectType
-      //         const defaultObjectType = objectTypeId;
-      //         const field = parts[0];
-      //         if (!objectTypeFieldsMap[defaultObjectType]) {
-      //           objectTypeFieldsMap[defaultObjectType] = [];
-      //         }
-      //         objectTypeFieldsMap[defaultObjectType].push(field);
-      //       } else {
-      //         console.error(`Invalid dataField format: ${dataField}`);
-      //       }
-      //     });
-
-      //     for (const [objectType, fieldsForObject] of Object.entries(
-      //       objectTypeFieldsMap
-      //     )) {
-      //       try {
-
-      //         const dynamicpropertiesResponse = await fetch("https://marqembed.fastgenapp.com/get-object-properties", {
-      //           method: "POST", // Ensure the request method matches the expected method for the endpoint
-      //           headers: {
-      //             "Content-Type": "application/json"
-      //           },
-      //           body: {
-      //             objectId: context.crm.objectId,
-      //             objectType: objectType,
-      //             properties: fields,
-      //             userId: userid // Include userId in the parameters
-      //           }
-      //         });
-
-      //         if (dynamicpropertiesResponse?.response?.body) {
-      //           const responseBody = JSON.parse(
-      //             dynamicpropertiesResponse.response.body
-      //           );
-      //           const dynamicpropertiesBody =
-      //             responseBody.mappedProperties || {};
-
-      //           console.log(
-      //             `Fetched properties for dynamic objectType (${objectType}):`,
-      //             dynamicpropertiesBody
-      //           );
-
-      //           let mappeddynamicproperties = {};
-
-      //           // Iterate over dataFields and map to mappeddynamicproperties
-      //           dataFields.forEach((dataField) => {
-      //             const parts = dataField.split("."); // e.g., 'deal.dealstage'
-
-      //             // Only update fields with the correct prefix (e.g., deal.amount for deal objectType)
-      //             if (parts.length === 2 && parts[0] === objectType) {
-      //               const [objectTypePrefix, field] = parts;
-      //               const fieldValue = dynamicpropertiesBody[field]; // Get the value for the field
-      //               if (fieldValue !== null && fieldValue !== "") {
-      //                 mappeddynamicproperties[dataField] = fieldValue; // Only map if value is non-empty
-      //               }
-      //             } else if (parts.length === 1) {
-      //               // Handle fields without an explicit objectType (using default)
-      //               const field = parts[0];
-      //               const fieldValue = dynamicpropertiesBody[field]; // Get the value for the field
-      //               if (fieldValue !== null && fieldValue !== "") {
-      //                 mappeddynamicproperties[dataField] = fieldValue; // Only map if value is non-empty
-      //               }
-      //             }
-      //           });
-
-      //           // Merge new properties with the existing ones, but only overwrite if non-empty
-      //           setDynamicProperties((prevProperties) => ({
-      //             ...prevProperties,
-      //             ...mappeddynamicproperties,
-      //           }));
-
-      //           console.log(
-      //             "Mapped Dynamic Properties after fetching:",
-      //             mappeddynamicproperties
-      //           );
-      //         } else {
-      //           console.error(
-      //             `Failed to fetch properties for dynamic objectType (${objectType})`,
-      //             dynamicpropertiesResponse
-      //           );
-      //         }
-      //       } catch (error) {
-      //         console.error(
-      //           `Error fetching properties for dynamic objectType (${objectType}):`,
-      //           error
-      //         );
-      //       }
-      //     }
-
-      //     try {
-      //       // Check if the object is a 'deal'
-      //       console.log("Starting deal check for lineItems:");
-      //       if (objectType === "DEAL") {
-      //         // Make your API call to fetch associated line items for the deal
-
-      //         const lineItemsResponse = await fetch('https://marqembed.fastgenapp.com/fetch-line-items', {
-      //           method: 'POST', // Assuming POST based on the nature of the operation, adjust if needed
-      //           headers: {
-      //             'Content-Type': 'application/json',
-      //           },
-      //           body: {
-      //             dealId: context.crm.objectId, // Include dealId in the body
-      //             userId: userid // Include userId in the body as well
-      //           },
-      //         });
-
-      //         // Parse the response and return the line items
-      //         const lineItems = JSON.parse(lineItemsResponse.response.body);
-      //         console.log("lineItems:", lineItems);
-
-      //         setLineitemProperties(lineItems);
-      //       } else {
-      //         console.log(
-      //           "Object type is not a deal, skipping line item fetch."
-      //         );
-      //       }
-      //     } catch (error) {
-      //       console.error("Error fetching line items:", error);
-      //     }
-
-    //       // Fetch templates from 'fetchJsonData'
-    //       else {
-    //         console.error("Error: Missing template link to fetch templates.");
-
-    //         if (marquserinitialized) {
-    //           setShowTemplates(true);
-    //           setIsLoading(false);
-    //         } else {
-    //           setShowTemplates(false);
-    //           setIsLoading(false);
-    //           actions.addAlert({
-    //             title: "Error with template sync",
-    //             variant: "danger",
-    //             message: `There was an error fetching templates. Please try connecting to Marq again`,
-    //           });
-    //         }
-    //       }
-    //     } else {
-    //       console.error("Failed to load config data:", configDataResponse);
-    //     }
-    //   } catch (configError) {
-    //     console.error(
-    //       "Error occurred while fetching config data:",
-    //       configError
-    //     );
-    //   }
-    // } catch (error) {
-    //   console.error("Error in fetchConfigCrmPropertiesAndTemplates:", error);
-    // }
-
-
     const filterTemplates = (
       allTemplates,
       searchTerm,
@@ -803,11 +485,9 @@ const fetchandapplytemplates = async () => {
       properties
     ) => {
       let filtered = Array.isArray(allTemplates) ? allTemplates : [];
-      // Dynamically extract filters
       const categoryFilters = extractFiltersFromProperties(globalfields, globalcategories, properties);
     
     
-      // Apply category filters with additional logic to include templates without certain filters
       filtered = filtered.filter((template, index) => {
         const templateHasCategories = Array.isArray(template?.categories);
         const matchesFilters = categoryFilters.every(filter => {
@@ -848,28 +528,26 @@ const fetchandapplytemplates = async () => {
   setTemplates(filtered); 
   setFilteredTemplates(filtered);
   setTotalPages(Math.ceil(filtered.length / RECORDS_PER_PAGE));
-  setCurrentPage(1); // Reset to first page
+  setCurrentPage(1); 
     };
     
 
-  const deleteRecord = async (objectId, objectType) => {
+  const deleteRecord = async (projectid) => {
     try {
 
-      await hubspot.fetch("https://marqembed.fastgenapp.com/deleterecord", {
+      await hubspot.fetch("https://marqembed.fastgenapp.com/delete-project", {
         method: "POST",
-        body: JSON.stringify({
-          recordId: objectId,
-          objectType: objectType,
-        }), // Include additional parameters if needed
+        body: {
+          projectid: projectid
+        }, 
       });
 
 
-      // Remove the deleted record from the projects state
       setProjects((prevProjects) =>
-        prevProjects.filter((project) => project.objectId !== objectId)
-      );
+        prevProjects.filter((project) => project.projectid !== projectid)
+      );      
 
-      // Add success alert
+
       actions.addAlert({
         title: "Success",
         message: "Project deleted successfully",
@@ -878,7 +556,6 @@ const fetchandapplytemplates = async () => {
     } catch (error) {
       console.error("Error deleting project:", error);
 
-      // Add error alert
       actions.addAlert({
         title: "Error",
         variant: "error",
@@ -901,94 +578,74 @@ const fetchandapplytemplates = async () => {
     return date.toLocaleString("en-US", options);
   }
 
+  const cleanAndGroupProjectDetails = (projectDetails) => {
+    const groupedProjects = {};
+  
+    projectDetails.forEach(project => {
+      // Destructure only the relevant fields
+      const { dealstage, hubid, name, originaltemplateid, projectid, recordid, url } = project;
+  
+      // Ensure projectid exists and group by it
+      if (projectid) {
+        groupedProjects[projectid] = { 
+          dealstage, 
+          hubid, 
+          name, 
+          originaltemplateid, 
+          projectid, 
+          recordid, 
+          url 
+        };
+      }
+    });
+  
+    return groupedProjects;
+  };
+  
+
   const fetchAssociatedProjectsAndDetails = useCallback(
-    async (objectType) => {
-      // console.log("Fetching projects");
+    async () => {
       if (!context.crm.objectId) {
         console.error("No object ID available to fetch associated projects.");
         return [];
       }
-
+  
       try {
-        // First API call to fetch associated projects
-        const associatedProjectsResponse = await hubspot.fetch("https://marqembed.fastgenapp.com/fetch-projects", {
+        const associatedProjectsResponse = await hubspot.fetch("https://marqembed.fastgenapp.com/fetch-projects2", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
           body: {
-            objectId: objectId,
-            objectType: objectType,
+            recordid: context.crm.objectId
           },
         });
-      
-        // Check if the first fetch was successful and parse the response
+  
         if (associatedProjectsResponse.ok) {
           const projectsData = await associatedProjectsResponse.json();
-      
-          if (projectsData?.results?.length > 0) {
-            // Collect unique project IDs
-            const uniqueProjectIds = new Set(
-              projectsData.results.flatMap((p) =>
-                p.to ? p.to.map((proj) => proj.id) : []
-              )
+          const projectDetails = projectsData.Data;
+  
+          if (projectDetails?.length > 0) {
+            // Group and clean the project details by projectid
+            const groupedProjects = cleanAndGroupProjectDetails(projectDetails);
+            
+            const detailedProjects = Object.values(groupedProjects);
+            detailedProjects.sort(
+              (a, b) => new Date(b.hs_lastmodifieddate) - new Date(a.hs_lastmodifieddate)
             );
-      
-            // Second API call to fetch detailed project data
-            const projectDetailsResponse = await fetch("https://marqembed.fastgenapp.com/fetchprojectdetails", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: {
-                objectIds: Array.from(uniqueProjectIds), // Convert Set to Array if needed
-              },
-            });
-      
-            // Check if the second fetch was successful and parse the response
-            if (projectDetailsResponse.ok) {
-              const projectDetails = await projectDetailsResponse.json();
-      
-              const uniqueDetailedProjects = new Map();
-              projectsData.results.forEach((project) => {
-                project.to.forEach((p) => {
-                  const detail = projectDetails.find((d) => d.objectId === p.id);
-                  if (detail) {
-                    uniqueDetailedProjects.set(p.id, { ...p, ...detail });
-                  } else {
-                    uniqueDetailedProjects.set(p.id, p);
-                  }
-                });
-              });
-      
-              const detailedProjects = Array.from(uniqueDetailedProjects.values());
-              detailedProjects.sort(
-                (a, b) =>
-                  new Date(b.hs_lastmodifieddate) - new Date(a.hs_lastmodifieddate)
-              );
-      
-              // Update state
-              setProjects(detailedProjects);
-              const totalPages = Math.ceil(detailedProjects.length / RECORDS_PER_PAGE);
-              setTotalPages(totalPages);
-              setDataFetched(true);
-      
-              // Return the detailed projects
-              return detailedProjects;
-            } else {
-              console.error("Failed to fetch project details:", projectDetailsResponse.statusText);
-              throw new Error("Failed to fetch project details");
-            }
+  
+            // Update state
+            setProjects(detailedProjects);
+            const totalPages = Math.ceil(detailedProjects.length / RECORDS_PER_PAGE);
+            setTotalPages(totalPages);
+            
+            return detailedProjects;
           }
         } else {
           console.error("Failed to fetch associated projects:", associatedProjectsResponse.statusText);
           throw new Error("Failed to fetch associated projects");
         }
-      
+  
         return [];
       } catch (error) {
         console.error("Error during fetch:", error);
-        setDataFetched(true);
         actions.addAlert({
           title: "API Error",
           variant: "error",
@@ -996,91 +653,40 @@ const fetchandapplytemplates = async () => {
         });
         return [];
       }
-      
     },
     [context.crm.objectId, hubspot.fetch, actions]
   );
+  
 
-  const editClick = async (projectId, fileId, encodedoptions) => {
+  const editClick = async (projectId, fileId, templateId) => {
     let editoriframeSrc = "https://info.marq.com/loading";
-
-    // Set iframe to loading
-    setIframeUrl(editoriframeSrc);
     actions.openIframeModal({
       uri: editoriframeSrc,
       height: 1500,
       width: 1500,
       title: "Marq",
     });
-    setIframeOpen(true);
-
-    try {
+    
       const contactId = context.crm.objectId;
-
-      const createaccounttable = await fetch("https://marqembed.fastgenapp.com/fetchaccounttable", {
-        method: "POST", // Assuming it's a POST request
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          objectType: objectType, // Pass objectType as a parameter
-        }),
-      });
-
-      if (!createaccounttable?.response?.body) {
-        console.error(
-          "No response body from serverless function. Aborting poll."
-        );
-        return;
-      }
-
-      let accountTableResponseBody = {};
-      try {
-        accountTableResponseBody = JSON.parse(createaccounttable.response.body);
-      } catch (err) {
-        console.error("Failed to parse response body as JSON:", err);
-        return;
-      }
-
-      const accountData = accountTableResponseBody?.dataRow?.values || {};
-      const matchedData = accountTableResponseBody?.objectTypeRow?.values || {};
-
-      // console.log('accountData:', accountData);
-
-      // marqaccountinitialized = accountData?.marqaccountinitialized || null;
-      marqAccountId = accountData?.accountId || null;
-      datasetid = matchedData?.datasetid || null;
-      collectionid = matchedData?.collectionid || null;
       const creatorid = context.user.id;
       const portalid = context.portal.id;
       const originobjectType = constobjectType;
 
-      if (!marqAccountId) {
-        console.error("marqAccountId is missing, cannot proceed.");
-        return;
-      }
+      // await updateData();
 
-
-      await updateData();
-
-      let editorinnerurl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${processedembedoptions}&creatorid=${creatorid}&contactid=${contactId}&hubid=${portalid}&objecttype=${originobjectType}&fileid=${fileId}`;
+      let editorinnerurl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${processedembedoptions}&creatorid=${creatorid}&contactid=${contactId}&hubid=${portalid}&objecttype=${originobjectType}&fileid=${fileId}&templateid=${templateId}`;
       const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(editorinnerurl)}`;
 
       editoriframeSrc =
         "https://info.marq.com/marqembed2?iframeUrl=" +
         encodeURIComponent(baseInnerUrl);
-
-      setIframeUrl(editoriframeSrc);
       actions.openIframeModal({
         uri: editoriframeSrc,
         height: 1500,
         width: 1500,
         title: "Marq Editor",
       });
-      setIframeOpen(true);
-    } catch (error) {
-      console.error("Error in editClick:", error);
-    }
+   
   };
 
   const sendEmail = async (project) => {
@@ -1122,39 +728,13 @@ const fetchandapplytemplates = async () => {
     return filters;
   };
 
-  const handleOnSort = (fieldName, currentDirection) => {
-    let newDirection = "descending";
-    if (currentDirection === "ascending") {
-      newDirection = "descending";
-    } else if (currentDirection === "descending") {
-      newDirection = "none";
-    } else {
-      newDirection = "ascending";
-    }
 
-    setSortConfig({ field: fieldName, direction: newDirection });
-
-    const sortedProjects = [...projects];
-    if (newDirection !== "none") {
-      sortedProjects.sort((a, b) => {
-        if (a[fieldName] < b[fieldName]) {
-          return newDirection === "ascending" ? -1 : 1;
-        }
-        if (a[fieldName] > b[fieldName]) {
-          return newDirection === "ascending" ? 1 : -1;
-        }
-        return 0;
-      });
-    }
-
-    setProjects(sortedProjects);
-  };
 
   const refreshProjects = async () => {
-    // console.log("Calling refresh projects");
+    console.log("Calling refresh projects");
 
     if (!shouldPollForProjects.isPolling) {
-      // console.log("Polling stopped: shouldPollForProjects.isPolling is false in refreshProjects");
+      console.log("Polling stopped: shouldPollForProjects.isPolling is false in refreshProjects");
       return;
     }
 
@@ -1163,7 +743,7 @@ const fetchandapplytemplates = async () => {
     templateIdToMatch = shouldPollForProjects.templateId;
 
     if (objectType && templateIdToMatch) {
-      const projectsList = await fetchAssociatedProjectsAndDetails(objectType);
+      const projectsList = await fetchAssociatedProjectsAndDetails();
 
       // Check for matching project
       const matchingProject = projectsList.find(
@@ -1171,7 +751,7 @@ const fetchandapplytemplates = async () => {
       );
 
       if (matchingProject) {
-        // console.log(`Found matching project for template ID: ${templateIdToMatch}`);
+        console.log(`Found matching project for template ID: ${templateIdToMatch}`);
         setShouldPollForProjects({ isPolling: false, templateId: null });
         setLoadingTemplateId(null);
         templateIdToMatch = null;
@@ -1454,16 +1034,13 @@ const fetchandapplytemplates = async () => {
 
   const handleClick = async (template) => {
     let iframeSrc = "https://info.marq.com/loading";
-
-    // Set iframe to loading
-    setIframeUrl(iframeSrc);
     actions.openIframeModal({
       uri: iframeSrc,
       height: 1500,
       width: 1500,
       title: "Marq",
     });
-    setIframeOpen(true);
+    
 
 
       const templateid = template?.id || "";
@@ -1488,15 +1065,19 @@ const fetchandapplytemplates = async () => {
         );
       
         if (createProjectResponse.ok) {
-          const createProjectResponseBody = await createProjectResponse.json();
-          const projectData = createProjectResponseBody.Data;
 
-          try {
-            const projectData = JSON.parse(createProjectResponse.response.body.project_info);
-            console.log("Project created successfully:", projectData);
+            const createProjectResponseBody = await createProjectResponse.json();
+            const projectData = createProjectResponseBody?.project_info || {};
+                        console.log("Project created successfully:", projectData);
 
             // Ensure projectId is extracted correctly
-            projectId = projectData.documentid;
+            projectId = projectData.id;
+
+            setCreatedProjects((prevProjects) => ({
+              ...prevProjects,
+              [template.id]: projectId,  // Track projectId by template id
+            }));
+
             if (!projectId) {
               console.warn(
                 "Failed to create project through the API - reverting to URL method."
@@ -1505,41 +1086,14 @@ const fetchandapplytemplates = async () => {
               return;
             }
 
-            // const encodedOptions = encodeURIComponent(
-            //   btoa(
-            //     JSON.stringify({
-            //       enabledFeatures: configData.enabledFeatures?.map(
-            //         (feature) => feature.name
-            //       ) || ["share"],
-            //       fileTypes: configData.fileTypes?.map(
-            //         (fileType) => fileType.name
-            //       ) || ["pdf"],
-            //       showTabs: configData.showTabs?.map((tab) => tab.name) || [
-            //         "templates",
-            //       ],
-            //     })
-            //   )
-            // );
-
             const contactId = context.crm.objectId;
-            const returnUrl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${processedembedoptions}&creatorid=${userid}&contactid=${contactId}&hubid=${hubid}&objecttype=${objectType}&dealstage=${stageName}&templateid=${template.id}`;
+            const portalid = context.portal.id;
+            const returnUrl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${processedembedoptions}&creatorid=${userid}&contactid=${contactId}&hubid=${portalid}&objecttype=${objectType}&dealstage=${stageName}&templateid=${template.id}`;
             const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(returnUrl)}`;
 
             iframeSrc =
               "https://info.marq.com/marqembed2?iframeUrl=" +
               encodeURIComponent(baseInnerUrl);
-          } catch (parseError) {
-            console.error(
-              "Error parsing project creation response:",
-              parseError
-            );
-            console.error(
-              "Raw response body:",
-              createProjectResponse.response.body
-            );
-            iframeFallback(template.id); // Fallback in case of error
-            return;
-          }
         } else {
       console.error("Error with creating project:", createProjectResponse);
       iframeFallback(template.id); // Fallback in case of failure
@@ -1555,31 +1109,14 @@ const fetchandapplytemplates = async () => {
         iframeFallback(template.id); // Fallback in case of error
         return;
       }
-
-      // Opening the iframe with the appropriate source
-      setIframeUrl(iframeSrc);
       actions.openIframeModal({
         uri: iframeSrc,
         height: 1500,
         width: 1500,
         title: "Marq",
       });
-      setIframeOpen(true);
+      
       setShouldPollForProjects({ isPolling: true, templateId: template.id });
-
-      // console.error("Error in handleClick:", error);
-      // iframeFallback(template.id);
-
-      // setShowTemplates(false);
-      // setIsLoading(false);
-
-      // // Show an alert to the user in case of error
-      // actions.addAlert({
-      //   title: "Error with creating project",
-      //   variant: "danger",
-      //   message:
-      //     "There was an error with creating the project. Please try connecting to Marq again.",
-      // });
  
   };
 
@@ -1588,32 +1125,12 @@ const fetchandapplytemplates = async () => {
    */
   function iframeFallback(templateId) {
     let iframeSrc = "https://info.marq.com/loading";
-
-    // Set iframe to loading
-    setIframeUrl(iframeSrc);
     actions.openIframeModal({
       uri: iframeSrc,
       height: 1500,
       width: 1500,
       title: "Marq",
     });
-    setIframeOpen(true);
-
-    // const encodedOptions = encodeURIComponent(
-    //   btoa(
-    //     JSON.stringify({
-    //       enabledFeatures: configData.enabledFeatures?.map(
-    //         (feature) => feature.name
-    //       ) || ["share"],
-    //       fileTypes: configData.fileTypes?.map((fileType) => fileType.name) || [
-    //         "pdf",
-    //       ],
-    //       showTabs: configData.showTabs?.map((tab) => tab.name) || [
-    //         "templates",
-    //       ],
-    //     })
-    //   )
-    // );
 
     const contactId = context.crm.objectId;
     const creatorid = context.user.id;
@@ -1626,14 +1143,13 @@ const fetchandapplytemplates = async () => {
     iframeSrc =
       "https://info.marq.com/marqembed2?iframeUrl=" +
       encodeURIComponent(baseInnerUrl);
-    setIframeUrl(iframeSrc);
     actions.openIframeModal({
       uri: iframeSrc,
       height: 1500,
       width: 1500,
       title: "Marq",
     });
-    setIframeOpen(true);
+    
     setShouldPollForProjects({ isPolling: true, templateId: templateId });
   }
 
@@ -1690,74 +1206,6 @@ const fetchandapplytemplates = async () => {
     };
   }, [isPolling]);
 
-  // const startPollingForMarqAccount = () => {
-  //   setAccountIsPolling(true); // Start polling when the button is clicked
-  // };
-
-  // const pollForMarqAccount = async () => {
-  //   try {
-  //     // Fetch account data using the serverless function
-  //     const createaccounttable = await hubspot.fetch({
-  //       name: "fetchAccountTable",
-  //       parameters: { objectType: objectType, userId: userid }, // Include userId in the parameters
-  //     });
-
-  //     if (!createaccounttable?.response?.body) {
-  //       console.error(
-  //         "No response body from serverless function. Aborting poll."
-  //       );
-  //       return;
-  //     }
-
-  //     try {
-  //       accountResponseBody = JSON.parse(createaccounttable.response.body);
-  //     } catch (err) {
-  //       console.error("Failed to parse response body as JSON:", err);
-  //       return;
-  //     }
-
-  //     const accountData = accountResponseBody?.dataRow?.values || {};
-
-  //     marqaccountinitialized = accountData?.marqaccountinitialized || null;
-  //     marqAccountId = accountData?.accountId || null;
-
-  //     if (!marqaccountinitialized) {
-  //       console.warn(
-  //         "Marq account not initialized, will continue polling."
-  //       );
-  //       setShowMarqAccountButton(true); // Optionally allow the user to retry
-  //       return;
-  //     }
-
-  //     setAccountIsPolling(false);
-  //     setShowMarqAccountButton(false);
-
-  //     try {
-  //       await createOrUpdateDataset();
-  //     } catch (error) {
-  //       console.error("Error creating or updating dataset:", error);
-  //     }
-  //   } catch (error) {
-  //     console.error(
-  //       "Error while polling for Marq account:",
-  //       error.message || error
-  //     );
-  //   }
-  // };
-
-  useEffect(() => {
-    let pollAccountInterval;
-
-    // Start polling if the account is set to be polling
-    if (isAccountPolling) {
-      pollAccountInterval = setInterval(pollForMarqAccount, 5000); // Poll every 5 seconds
-    }
-
-    // Cleanup interval when polling stops or component unmounts
-    return () => {
-      clearInterval(pollAccountInterval);
-    };
-  }, [isAccountPolling]);
 
   useEffect(() => {
     const pollingForProjects = async () => {
@@ -1809,11 +1257,7 @@ const fetchandapplytemplates = async () => {
       setSearchTerm(searchValue);
 
       if (searchValue.trim() === "") {
-        // Reset to the initially filtered templates when the search term is cleared
-        // setFilteredTemplates([...initialFilteredTemplates]);
         setFilteredTemplates(Array.isArray(initialFilteredTemplates) ? [...initialFilteredTemplates] : []);
-        // console.log('Initial Filtered Templates in handleSearch:', initialFilteredTemplates);
-
         setTitle("Relevant Content");
       } else {
         setTitle("Search Results");
@@ -1861,11 +1305,6 @@ const fetchandapplytemplates = async () => {
     }
   };
 
-  // paginatedTemplates = filteredTemplates.slice(
-  //   (currentPage - 1) * RECORDS_PER_PAGE,
-  //   currentPage * RECORDS_PER_PAGE
-  // );
-
 useEffect(() => {
   // This will update the total number of pages whenever filteredTemplates change
   const pages = Math.ceil(filteredTemplates.length / RECORDS_PER_PAGE);
@@ -1883,71 +1322,8 @@ useEffect(() => {
   }
 }, [filteredTemplates, currentPage]);
 
-  
-
-
-
-  // // Separate function to fetch Marq account data
-  // const fetchMarqAccountData = async () => {
-  //   try {
-
-  //     const createaccounttable = await hubspot.fetch(
-  //       "https://marqembed.fastgenapp.com/datatablehandler2", 
-  //       {
-  //           method: "POST",
-  //           body: {
-  //             objectType: objectType
-  //           }
-  //       }
-  //   );
-    
-  //   if (createaccounttable.ok) {
-  //       // Parse the response body as JSON
-  //       const createaccounttableResponseBody = await createaccounttable.json();
-  //       console.log("createaccounttable response body:", createaccounttableResponseBody);
-
-  //       marqaccountinitialized = createaccounttableResponseBody?.Data?.dataRow?.values?.marqaccountinitialized;
-  //       datasetid = createaccounttableResponseBody?.Data?.objectTypeRow?.values?.datasetid || null;
-  //       marqaccountinitialized = createaccounttableResponseBody?.Data?.objectTypeRow?.values?.collectionid || null;
-
-
-  //       // datasetid = matchedData.datasetid || null;
-  //       // collectionid = matchedData.collectionid || null;
-
-  //       // if (marqaccountinitialized) {
-  //       //   setShowMarqAccountButton(false);
-
-  //       //   if (!datasetid || !collectionid) {
-  //       //     await createOrUpdateDataset();
-  //       //   }
-  //       // } else {
-  //       //   setShowMarqAccountButton(true);
-  //       // }
-  //     } else {
-  //       console.error("Failed to fetch Marq account data.");
-  //       setShowMarqAccountButton(true);
-  //     }
-  //   } catch (error) {
-  //     console.error("Error in fetching Marq account data:", error);
-  //   }
-  // };
-
 
   useEffect(() => {
-    // Function to create a mapping from original fields (without cleaning)
-    const createFieldMapping = (fields) => {
-      console.log('Creating field mapping for fields:', fields);
-      return fields.reduce((acc, field) => {
-        acc[field] = field; // Map the field to itself
-        console.log('Field:', field);
-        return acc;
-      }, {});
-    };
-
-    const fieldMapping = GlobalWatchFields.reduce((acc, field) => {
-      acc[field] = field; 
-      return acc;
-    }, {});
     const dynamicFieldMapping = Object.keys(dynamicProperties).reduce((acc, field) => {
       acc[field] = field;
       return acc;
@@ -1996,16 +1372,12 @@ useEffect(() => {
     };
   
     // Combine the fields to watch from both GlobalWatchFields and dynamicProperties
-    const fieldsToWatch = [...GlobalWatchFields, ...Object.keys(dynamicProperties)];
-    console.log("fieldsToWatch:", fieldsToWatch);
-  
+    const fieldsToWatch = [...GlobalWatchFields, ...Object.keys(dynamicProperties)];  
     if (fieldsToWatch.length > 0) {
-      console.log('Setting up properties update handler for fieldsToWatch');
       actions.onCrmPropertiesUpdate(fieldsToWatch, handlePropertiesUpdate);
     }
   
     return () => {
-      console.log('Cleaning up properties update handler');
       actions.onCrmPropertiesUpdate([], null);
     };
   }, [
@@ -2013,7 +1385,6 @@ useEffect(() => {
     context.crm.objectTypeId,
     GlobalWatchFields, 
     GlobalCategoryFilters,
-    crmProperties,
     fulltemplatelist,
     searchTerm,
     dynamicProperties,
@@ -2137,7 +1508,7 @@ useEffect(() => {
     }
   };
 
-  if (iframeLoading || isLoading) {
+  if (isLoading) {
     return (
       <Flex direction="column" gap="medium" align="center">
         <LoadingSpinner label="Loading projects..." layout="centered" />
@@ -2165,20 +1536,6 @@ useEffect(() => {
   if (showTemplates) {
     return (
       <>
-        {/* Marq Account Button
-        {ShowMarqAccountButton && (
-          <LoadingButton
-            href={accountauthURL}
-            loading={isLoading} // Use isLoading to control the spinner
-            variant="primary"
-            onClick={() => {
-              startPollingForMarqAccount();
-            }}
-          >
-            {isLoading ? "Syncing..." : "Sync Marq account data"}
-          </LoadingButton>
-        )} */}
-
         <Form>
           <Flex direction="row" justify="center" gap="small">
             <Box flex={1}>
@@ -2227,7 +1584,7 @@ useEffect(() => {
                         editClick(
                           matchingProject.projectid,
                           matchingProject.fileid,
-                          matchingProject.encodedoptions
+                          matchingProject.originaltemplateid                        
                         )
                       }
                       preventDefault
@@ -2241,7 +1598,7 @@ useEffect(() => {
                         editClick(
                           matchingProject.projectid,
                           matchingProject.fileid,
-                          matchingProject.encodedoptions
+                          matchingProject.originaltemplateid                        
                         )
                       }
                       preventDefault
@@ -2260,8 +1617,8 @@ useEffect(() => {
                           editClick(
                             matchingProject.projectid,
                             matchingProject.fileid,
-                            matchingProject.encodedoptions
-                          )
+                            matchingProject.originaltemplateid
+                            )
                         }
                       >
                         Open
@@ -2305,7 +1662,7 @@ useEffect(() => {
                       <Button
                         variant="destructive"
                         onClick={() =>
-                          deleteRecord(matchingProject.objectId, "projects")
+                          deleteRecord(matchingProject.projectid)
                         }
                       >
                         Delete
@@ -2321,56 +1678,77 @@ useEffect(() => {
                   }
                 >
                   <TableCell>
-                    <Image
+                  <Image
                       alt="Template Preview"
                       src={`https://app.marq.com/documents/thumb/${template.id}/0/2048/NULL/400`}
-                      onClick={() => handleClick(template)}
+                      onClick={() => {
+                        if (createdProjects[template.id]) {
+                          editClick(createdProjects[template.id], template.id, template.id);
+                        } else {
+                          handleClick(template).then(() => {
+                            setShouldPollForProjects({ isPolling: true, templateId: template.id });
+                          });
+                        }
+                      }}
                       preventDefault
                       width={100}
                     />
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      href="#"
-                      onClick={() => handleClick(template)}
-                      preventDefault
-                      variant="primary"
-                    >
-                      {template.title}
-                    </Link>
-                  </TableCell>
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        href="#"
+                        onClick={() => {
+                          if (createdProjects[template.id]) {
+                            editClick(createdProjects[template.id], template.id, template.id);
+                          } else {
+                            handleClick(template).then(() => {
+                              setShouldPollForProjects({ isPolling: true, templateId: template.id });
+                            });
+                          }
+                        }}
+                        preventDefault
+                        variant="primary"
+                      >
+                        {template.title}
+                      </Link>
+                    </TableCell>
+
                   <TableCell />
                   <TableCell>
-                    <LoadingButton
-                      loading={loadingTemplateId === template.id}
-                      size="medium"
-                      onClick={() => {
-                        setLoadingTemplateId(template.id);
-                        handleClick(template);
-                      }}
-                    >
-                      {loadingTemplateId === template.id
-                        ? "Saving..."
-                        : "Create"}
-                    </LoadingButton>
+  <Button
+    size="medium"
+    onClick={() => {
+      if (createdProjects[template.id]) {
+        // If the project is already created, call editClick
+        editClick(createdProjects[template.id], template.id, template.id);
+      } else {
+        // Create the project and then poll for it
+        setLoadingTemplateId(template.id);
+        handleClick(template).then(() => {
+          setShouldPollForProjects({
+            isPolling: true,
+            templateId: template.id,
+          });
+        });
+      }
+    }}
+  >
+    {createdProjects[template.id] ? "Edit" : "Create"}
+  </Button>
+  
+  {createdProjects[template.id] && (
+    <Button
+      variant="destructive"
+      size="medium"
+      onClick={() => {
+        deleteRecord(createdProjects[template.id]);
+      }}
+    >
+      Delete
+    </Button>
+  )}
+</TableCell>
 
-                    {/* Cancel Button */}
-                    {loadingTemplateId === template.id && (
-                      <Button
-                        variant="destructive"
-                        size="small"
-                        onClick={() => {
-                          setLoadingTemplateId(null);
-                          setShouldPollForProjects({
-                            isPolling: false,
-                            templateId: null,
-                          });
-                        }}
-                      >
-                        X
-                      </Button>
-                    )}
-                  </TableCell>
                 </TableRow>
               );
             })}
