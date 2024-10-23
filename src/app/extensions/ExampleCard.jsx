@@ -27,7 +27,7 @@ const Extension = ({ context, actions }) => {
   const [createdProjects, setCreatedProjects] = useState({});
   const [fulltemplatelist, setfullTemplates] = useState([]);
   const [dynamicProperties, setDynamicProperties] = useState({});
-  const [lineitemProperties, setLineitemProperties] = useState({});
+  const [lineitemProperties, setLineitemProperties] = useState([]);
   const [title, setTitle] = useState("Relevant Content");
   const [stageName, setStage] = useState("");
   const [initialFilteredTemplates, setInitialFilteredTemplates] = useState([]);
@@ -58,7 +58,6 @@ const Extension = ({ context, actions }) => {
   let lasttemplatesyncdate = "";
   let templatesfeed = "";
   let marquserinitialized = false;
-  let marqaccountinitialized = false;
   let globalcategories = [];
   let globalfields = [];
   let propertiesBody = {};
@@ -158,22 +157,37 @@ useEffect(() => {
 
 const fetchcustomdatafields = async () => {
   try {
+
+    if (!objectType) {
+      const fetchedObjectType = await fetchObjectType();
+      if (fetchedObjectType) {
+        objectType = fetchedObjectType; // Assign the fetched objectType
+      } else {
+        console.error("Failed to fetch Object Type.");
+      }
+    }
+    
+
     const customdatafieldslookup = await hubspot.fetch(
       "https://marqembed.fastgenapp.com/marq-custom-data-lookup",
       {
         method: "POST",
-        body: {}
+        body: {
+          objecttype: objectType,
+        }
       }
     );
 
     if (customdatafieldslookup.ok) {
       // Parse the response body as JSON
       const customdatafieldslookupResponseBody = await customdatafieldslookup.json();
-      const customdatafieldsresult = customdatafieldslookupResponseBody.response.datafields;
-      const customdatafields = JSON.parse(customdatafieldsresult);
+      const customdatafields = customdatafieldslookupResponseBody.response;
       console.log("customdatafields", customdatafields);
+      setDynamicProperties(customdatafields);
 
-
+      if (customdatafields.length > 0) {
+        await updateData();
+      }
 
     } else {
       console.error(`Error fetching custom data fields table: ${customdatafieldslookup.status} - ${customdatafieldslookup.statusText}`);
@@ -245,35 +259,39 @@ const fetchObjectType = async () => {
       throw new Error("Context is undefined.");
     }
 
-      const objectTypeResponse = await hubspot.fetch(
-        "https://marqembed.fastgenapp.com/fetch-object",
-        {
-          method: "POST",
-          body: {
-            objectTypeId: context.crm.objectTypeId
-          },
-        }
-      );
-
-      if (objectTypeResponse.ok) {
-        const objectTypeResponseBody = await objectTypeResponse.json();
-        
-        // Accessing the objectType within the body -> Data -> body
-        objectType = objectTypeResponseBody.Data?.body?.objectType;
-        setconstobjectType(objectType);
-
-        if (objectType) {
-          console.log("Object Type:", objectType);
-        } else {
-          console.error("Object Type not found in response.");
-        }
-      } else {
-        console.error("Error fetching object type:", objectTypeResponse);
+    const objectTypeResponse = await hubspot.fetch(
+      "https://marqembed.fastgenapp.com/fetch-object",
+      {
+        method: "POST",
+        body: {
+          objectTypeId: context.crm.objectTypeId
+        },
       }
+    );
+
+    if (objectTypeResponse.ok) {
+      const objectTypeResponseBody = await objectTypeResponse.json();
+      
+      // Accessing the objectType within the body -> Data -> body
+      objectType = objectTypeResponseBody.Data?.body?.objectType;
+
+      if (objectType) {
+        setconstobjectType(objectType); // Set the state if necessary
+        return objectType; // Return the fetched objectType
+      } else {
+        console.error("Object Type not found in response.");
+        return null;
+      }
+    } else {
+      console.error("Error fetching object type:", objectTypeResponse);
+      return null;
+    }
   } catch (error) {
     console.error("Error fetching object type:", error);
+    return null;
   }
 };
+
 
 
 const fetchtemplatefilters = async () => {
@@ -352,8 +370,13 @@ const applytemplates = async (fetchedTemplates) => {
       if (templatefilterslookupresult && typeof templatefilterslookupresult === 'object') {
         // Validate objectType (either passed or set globally)
         if (!objectType) {
-          await fetchObjectType();
-        }
+          const fetchedObjectType = await fetchObjectType();
+          if (fetchedObjectType) {
+            objectType = fetchedObjectType; // Assign the fetched objectType
+          } else {
+            console.error("Failed to fetch Object Type.");
+          }
+        }        
 
         const pluralObjectType = `${objectType.toLowerCase()}s`; // e.g., "deal" -> "deals"
         const filterEntries = templatefilterslookupresult[pluralObjectType] || [];
@@ -697,8 +720,6 @@ const fetchandapplytemplates = async () => {
       const portalid = context.portal.id;
       const originobjectType = constobjectType;
 
-      // await updateData();
-
       let editorinnerurl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${processedembedoptions}&creatorid=${creatorid}&contactid=${contactId}&hubid=${portalid}&objecttype=${originobjectType}&fileid=${fileId}&templateid=${templateId}`;
       const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(editorinnerurl)}`;
 
@@ -813,13 +834,38 @@ const fetchandapplytemplates = async () => {
   
   
 
+  const fetchLineItemProperties = async () => {
+    try {
+      const response = await hubspot.fetch('https://marqembed.fastgenapp.com/fetch-line-items', {
+        method: 'POST',
+        body: {
+          objectId: context.crm.objectId,
+        },
+      });
+  
+      if (response.ok) {
+        const data = await response.json();
+        setLineitemProperties(data.lineItems || []);
+      } else {
+        console.error('Failed to fetch line item properties:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Error fetching line item properties:', error);
+    }
+  };
+  
+ 
+
 
   const updateData = async () => {
     console.log("Starting updateData...");
+
+    
+
+
     console.log("dynamicProperties before merge:", dynamicProperties);
 
-    if (marqaccountinitialized) {
-      try {
+   
         const properties = {};
 
         // Merge dynamicProperties into the properties object
@@ -900,8 +946,30 @@ const fetchandapplytemplates = async () => {
           return "";
         };
 
+
+        if (!objectType) {
+          const fetchedObjectType = await fetchObjectType();
+          if (fetchedObjectType) {
+            objectType = fetchedObjectType; // Assign the fetched objectType
+          } else {
+            console.error("Failed to fetch Object Type.");
+          }
+        }
+
+
         // Only process line items if the objectType is 'DEAL'
         if (objectType === "DEAL") {
+
+          console.log("ObjectType is DEAL. Fetching line item properties...");
+
+          // Fetch line item properties directly within updateData
+          await fetchLineItemProperties();
+          console.log("Fetched line item properties:", lineitemProperties);
+      
+          const numberOfLineItems = Math.min(10, lineitemProperties.length); // Allow up to 10 line items
+          console.log("Number of line items to process:", numberOfLineItems);
+
+          if (lineitemProperties.length > 0) {
           for (let i = 0; i < 10; i++) {
             // Check if the line item exists
             const lineItem = lineitemProperties[i] || null;
@@ -1004,6 +1072,7 @@ const fetchandapplytemplates = async () => {
             }
           }
         }
+        }
 
         // Iterate over dynamicProperties and add them to updatedSchema
         Object.keys(dynamicProperties).forEach((propertyKey) => {
@@ -1033,44 +1102,32 @@ const fetchandapplytemplates = async () => {
         console.log("updatedProperties", updatedProperties);
 
         // Call update-data3 function
-        console.log("Starting updateData3");
-        const updateDataResponse = await hubspot.fetch({
-          name: "updateData3",
-          parameters: {
-            collectionId: collectionid,
-            properties: updatedProperties,
-            schema: updatedSchema,
-            dataSourceId: datasetid,
-          },
-        });
+        console.log("Starting updateData4");
 
-        // Check if the response was successful
-        if (
-          updateDataResponse?.response?.statusCode === 200 ||
-          updateDataResponse?.response?.statusCode === 201
-        ) {
-          console.log("Data updated successfully before project creation");
-
-          // **Parse the response body**
-          let responseBody = updateDataResponse.response.body;
-          if (typeof responseBody === "string") {
-            try {
-              responseBody = JSON.parse(responseBody);
-            } catch (e) {
-              console.error("Failed to parse response body as JSON:", e);
-              responseBody = {};
+        try {
+ 
+          const updatedataset = await hubspot.fetch(
+            "https://marqembed.fastgenapp.com/update-data4",
+            {
+              method: "POST",
+              body: {
+                properties: updatedProperties,
+                schema: updatedSchema,
+                objecttype: objectType
+              }
             }
-          }
-        } else {
-          console.error(
-            "Failed to update data before project creation",
-            updateDataResponse?.response?.body
           );
-        }
-      } catch (error) {
-        console.error("Error during update-data3 execution:", error);
-      }
-    }
+      
+          if (updatedataset.ok) {
+            // Parse the response body as JSON
+            const updatedatasetresponsebody = await updatedataset.json();
+            const updatedatasetresponse = updatedatasetresponsebody.response;
+          } else {
+            console.error(`Error updating dataset: ${updatedataset.status} - ${updatedataset.statusText}`);
+          }
+        } catch (error) {
+          console.error("Error in updating the dataset:", error);
+        }  
   };
 
 
@@ -1084,13 +1141,8 @@ const fetchandapplytemplates = async () => {
       title: "Marq",
     });
     
-
-
       const templateid = template?.id || "";
       const templatetitle = template?.title || "";
-
-      // await updateData();
-
 
       try {
 
@@ -1387,10 +1439,10 @@ useEffect(() => {
           {}
         );
   
-        setDynamicProperties((prevProperties) => ({
-          ...prevProperties,
-          ...updatedDynamicProps,
-        }));
+        // setDynamicProperties((prevProperties) => ({
+        //   ...prevProperties,
+        //   ...updatedDynamicProps,
+        // }));
         }
     };
   
