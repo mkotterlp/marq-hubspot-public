@@ -17,6 +17,7 @@ const Extension = ({ context, actions }) => {
   const [isPolling, setIsPolling] = useState(false);
   const [loadingTemplateId, setLoadingTemplateId] = useState(null);
   const [ShowMarqUserButton, setShowMarqUserButton] = useState(false);
+  const [isResyncing, setIsResyncing] = useState(false);
   const [showTemplates, setShowTemplates] = useState(true);
   const [userauthURL, setuserauthurl] = useState("");
   const [templates, setTemplates] = useState([]);
@@ -29,7 +30,6 @@ const Extension = ({ context, actions }) => {
   const [dynamicProperties, setDynamicProperties] = useState({});
   const [lineitemProperties, setLineitemProperties] = useState([]);
   const [title, setTitle] = useState("Relevant Content");
-  const [stageName, setStage] = useState("");
   const [initialFilteredTemplates, setInitialFilteredTemplates] = useState([]);
   const [projects, setProjects] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -53,6 +53,7 @@ const Extension = ({ context, actions }) => {
   let objectId = "";
   let objectTypeId = "";
   let objectType = "";
+  let stagename = "";
   let userid = "";
   let hubid = "";
   let lasttemplatesyncdate = "";
@@ -124,22 +125,12 @@ const Extension = ({ context, actions }) => {
         } catch (error) {
             console.error("Error in fetching user data:", error);
         }
-    } else if (hasInitialized.current) {
-        console.log("Already initialized. Filtering templates...");
-        // If already initialized, filter templates based on search criteria
-        filterTemplates(
-            fulltemplatelist,
-            searchTerm,
-            globalfields,
-            globalcategories
-        );
-    }
+    } 
 };
 
 
 useEffect(() => {
   if (context) {
-    console.log("Context:", context); 
     const fetchData = async () => {
       objectId = context.crm.objectId;
       objectTypeId = context.crm.objectTypeId;
@@ -150,7 +141,7 @@ useEffect(() => {
     };
     fetchData();
   } else {
-    console.log("Context is not available yet.");
+    console.warn("Context is not available yet.");
   }
 }, [context]);
 
@@ -182,12 +173,8 @@ const fetchcustomdatafields = async () => {
       // Parse the response body as JSON
       const customdatafieldslookupResponseBody = await customdatafieldslookup.json();
       const customdatafields = customdatafieldslookupResponseBody.response;
-      console.log("customdatafields", customdatafields);
-
       if (customdatafields.length > 0) {
-
         const customdatafieldsvaluepairs = await fetchObjectPropertiesFromFields(customdatafields);
-        console.log("customdatafieldsvaluepairs", customdatafieldsvaluepairs)
         setDynamicProperties(customdatafieldsvaluepairs);
       }
 
@@ -397,23 +384,18 @@ const applytemplates = async (fetchedTemplates) => {
         globalcategories = filterEntries.map(entry => entry.categoryField.toLowerCase()); // Get categoryField (e.g., 'Industry', 'HS deal stage')
         setGlobalCategoryFilters(globalcategories);
 
-        let propertiesBody = [];
         if (globalfields.length > 0) {
-        const propertiesBody = await fetchObjectPropertiesFromFields(globalfields);
-        console.log("propertiesBody", propertiesBody);
+        propertiesBody = await fetchObjectPropertiesFromFields(globalfields);
         } 
 
         if (globalfields.length && globalcategories.length && propertiesBody && Object.keys(propertiesBody).length > 0) {
-          // Call filterTemplates here
-          filterTemplates(fetchedTemplates, searchTerm, globalfields, globalcategories, propertiesBody);
         } else {
           console.warn('Missing data for filtering. Showing all templates.');
-          filterTemplates(fetchedTemplates, searchTerm, globalfields, globalcategories, propertiesBody);
         }
       } else {
         console.error("templatefilterslookupresult is undefined or not an object.");
-        filterTemplates(fetchedTemplates, searchTerm, globalfields, globalcategories, propertiesBody);
       }
+      filterTemplates(fetchedTemplates, searchTerm, globalfields, globalcategories, propertiesBody);
     } else {
       console.warn('No templates found. Setting empty array.');
       setTemplates([]);
@@ -504,7 +486,6 @@ const fetchandapplytemplates = async () => {
     if (fetchjsonResponse.ok) {
       const fetchjsonResponseBody = await fetchjsonResponse.json();
       const fetchedTemplates = fetchjsonResponseBody.Data.Data.body.templatesresponse;
-      console.log("fetchedTemplates", fetchedTemplates);
       setAllTemplates(fetchedTemplates);
       await applytemplates(fetchedTemplates);
       } else {
@@ -514,59 +495,62 @@ const fetchandapplytemplates = async () => {
   setIsLoading(false); // Stop loading regardless of success or error
 };
 
-    const filterTemplates = (
-      allTemplates,
-      searchTerm,
-      globalfields,
-      globalcategories,
-      properties
-    ) => {
-      let filtered = Array.isArray(allTemplates) ? allTemplates : [];
-      const categoryFilters = extractFiltersFromProperties(globalfields, globalcategories, properties);
-    
-    
-      filtered = filtered.filter((template, index) => {
-        const templateHasCategories = Array.isArray(template?.categories);
-        const matchesFilters = categoryFilters.every(filter => {
-          return templateHasCategories && template.categories.some(category => {
-            const match = category?.category_name?.toLowerCase() === filter.name?.toLowerCase() &&
-                          (category.values?.map(value => value.toLowerCase()).includes(filter.value?.toLowerCase()) || category.values?.length === 0);
-            return match;
-          });
-        });
-        return matchesFilters;
+const filterTemplates = (
+  allTemplates,
+  searchTerm,
+  globalfields,
+  globalcategories,
+  propertiesBody
+) => {
+  let filtered = [];
+  const categoryFilters = extractFiltersFromProperties(globalfields, globalcategories, propertiesBody);
+
+  // Log extracted filters for debugging
+  console.log("Extracted Category Filters:", categoryFilters);
+
+  // Filter templates based on categories
+  filtered = allTemplates.filter((template, index) => {
+    const templateHasCategories = Array.isArray(template?.categories);
+
+    const matchesFilters = categoryFilters.every(filter => {
+      const filterResult = templateHasCategories && template.categories.some(category => {
+        const match = category?.category_name?.toLowerCase() === filter.name?.toLowerCase() &&
+          (category.values?.map(value => value.toLowerCase()).includes(filter.value?.toLowerCase()) || category.values?.length === 0);
+        return match;
       });
-    
 
-      setInitialFilteredTemplates(filtered);
+      return filterResult;
+    });
     
-      // Apply search filter (searching within all templates)
-      if (searchTerm) {
-        const lowerCaseSearchTerm = searchTerm.toLowerCase();
-        filtered = filtered.filter((template, index) => {
-          const matchesSearchTerm = template?.title?.toLowerCase().includes(lowerCaseSearchTerm);
-          return matchesSearchTerm;
-        });
-      } else {
-          filtered = Array.isArray(initialFilteredTemplates) ? [...initialFilteredTemplates] : [];
-      }
-    
-    
-      // If no templates match, return the full list
-      if (filtered.length === 0) {
-        filtered = allTemplates;
+    return matchesFilters;
+  });
 
-        if (!searchTerm.trim()) {
-          filtered = Array.isArray(allTemplates) ? [...allTemplates] : [];
-        } 
-      }
-    
+  console.log("Filtered Templates after category filters:", filtered);
 
-  setTemplates(filtered); 
+  // Save initial filtered templates
+  setInitialFilteredTemplates(filtered);
+
+  // Apply search term filtering
+  if (searchTerm) {
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+    filtered = filtered.filter((template, index) => {
+      const matchesSearchTerm = template?.title?.toLowerCase().includes(lowerCaseSearchTerm);
+      return matchesSearchTerm;
+    });
+  } else {
+    filtered = Array.isArray(initialFilteredTemplates) ? [...initialFilteredTemplates] : [];
+  }
+  // If no templates match, return the full list
+  if (filtered.length === 0) {
+    filtered = allTemplates;
+  }
+  // Set templates and pagination data
+  setTemplates(filtered);
   setFilteredTemplates(filtered);
   setTotalPages(Math.ceil(filtered.length / RECORDS_PER_PAGE));
   setCurrentPage(1); 
-    };
+};
+
     
 
   const deleteRecord = async (projectid) => {
@@ -666,7 +650,6 @@ const fetchandapplytemplates = async () => {
       }
   
       try {
-        console.log("Fetching projects");
         const associatedProjectsResponse = await hubspot.fetch("https://marqembed.fastgenapp.com/fetch-projects2", {
           method: "POST",
           body: {
@@ -691,7 +674,6 @@ const fetchandapplytemplates = async () => {
             setProjects(detailedProjects);
             const totalPages = Math.ceil(detailedProjects.length / RECORDS_PER_PAGE);
             setTotalPages(totalPages);
-            console.log("detailedProjects", detailedProjects);
 
             return detailedProjects;
           }
@@ -767,10 +749,8 @@ const fetchandapplytemplates = async () => {
 
 
   const refreshProjects = async () => {
-    console.log("Calling refresh projects");
   
     if (!shouldPollForProjects.isPolling) {
-      console.log("Polling stopped: shouldPollForProjects.isPolling is false in refreshProjects");
       return;
     }
   
@@ -778,7 +758,6 @@ const fetchandapplytemplates = async () => {
   
     if (templateIdToMatch) {
       const projectsList = await fetchAssociatedProjectsAndDetails();
-      console.log("fetched projectsList from poll", projectsList);
   
       // Check for matching project
       const matchingProject = projectsList.find(
@@ -786,7 +765,6 @@ const fetchandapplytemplates = async () => {
       );
   
       if (matchingProject) {
-        console.log(`Found matching project for template ID: ${templateIdToMatch}`);
   
         // Stop polling and clear interval
         setShouldPollForProjects({ isPolling: false, templateId: null });
@@ -870,14 +848,7 @@ const fetchandapplytemplates = async () => {
 
 
   const updateData = async () => {
-    console.log("Starting updateData...");
 
-    
-
-
-    console.log("dynamicProperties before merge:", dynamicProperties);
-
-   
         const properties = {};
 
         // Merge dynamicProperties into the properties object
@@ -971,15 +942,9 @@ const fetchandapplytemplates = async () => {
 
 
         if (objectType === "DEAL") {
-          console.log("ObjectType is DEAL. Fetching line item properties...");
         
           // Fetch line item properties directly within updateData
           const lineitemProperties = await fetchLineItemProperties();
-          console.log("Fetched line item properties:", lineitemProperties);
-        
-          const numberOfLineItems = Math.min(10, lineitemProperties.length); // Allow up to 10 line items
-          console.log("Number of line items to process:", numberOfLineItems);
-        
           if (lineitemProperties.length > 0) {
             for (let i = 0; i < 10; i++) {
               // Check if the line item exists
@@ -1106,9 +1071,6 @@ const fetchandapplytemplates = async () => {
         // Append the Id field to the properties object
         updatedProperties["Id"] = context.crm.objectId?.toString() || "";
         updatedProperties["Marq User Restriction"] = context.user.email;
-
-        console.log("updatedProperties", updatedProperties);
-
         try {
  
           const updatedataset = await hubspot.fetch(
@@ -1151,6 +1113,23 @@ const fetchandapplytemplates = async () => {
 
       try {
 
+        if (!objectType) {
+          const fetchedObjectType = await fetchObjectType();
+          if (fetchedObjectType) {
+            objectType = fetchedObjectType; // Assign the fetched objectType
+          } else {
+            console.error("Failed to fetch Object Type.");
+          }
+        }
+
+        if (objectType && objectType === "DEAL") {
+          const lookupstagename = ["dealstage"];
+          const stagenamebody = await fetchObjectPropertiesFromFields(lookupstagename);
+          stagename = stagenamebody["dealstage"];
+          console.log("dealstage", stagename);
+        }
+
+
         let projectId = "";
         const createProjectResponse = await hubspot.fetch(
           "https://marqembed.fastgenapp.com/create-project2",
@@ -1159,6 +1138,8 @@ const fetchandapplytemplates = async () => {
             body: {
               templateid: templateid,
               templatetitle: templatetitle,
+              objecttype: objectType,
+              dealstage: stagename,
               recordid: context.crm.objectId?.toString(),
             },
           }
@@ -1168,8 +1149,6 @@ const fetchandapplytemplates = async () => {
 
             const createProjectResponseBody = await createProjectResponse.json();
             const projectData = createProjectResponseBody?.project_info || {};
-            console.log("Project created successfully:", projectData);
-
             // Ensure projectId is extracted correctly
             projectId = projectData.id;
 
@@ -1194,7 +1173,7 @@ setCreatedProjects((prevProjects = {}) => ({
 
             const contactId = context.crm.objectId;
             const portalid = context.portal.id;
-            const returnUrl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${processedembedoptions}&creatorid=${userid}&contactid=${contactId}&hubid=${portalid}&objecttype=${objectType}&dealstage=${stageName}&templateid=${template.id}`;
+            const returnUrl = `https://app.marq.com/documents/showIframedEditor/${projectId}/0?embeddedOptions=${processedembedoptions}&creatorid=${userid}&contactid=${contactId}&hubid=${portalid}&objecttype=${objectType}&dealstage=${stagename}&templateid=${template.id}`;
             const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(returnUrl)}`;
 
             iframeSrc =
@@ -1243,7 +1222,7 @@ setCreatedProjects((prevProjects = {}) => ({
     const portalid = context.portal.id;
     const originobjectType = constobjectType;
 
-    const returnUrl = `https://app.marq.com/documents/editNewIframed/${templateId}?embeddedOptions=${processedembedoptions}&creatorid=${creatorid}&contactid=${contactId}&hubid=${portalid}&objecttype=${originobjectType}&dealstage=${stageName}&templateid=${templateId}`;
+    const returnUrl = `https://app.marq.com/documents/editNewIframed/${templateId}?embeddedOptions=${processedembedoptions}&creatorid=${creatorid}&contactid=${contactId}&hubid=${portalid}&objecttype=${originobjectType}&dealstage=${stagename}&templateid=${templateId}`;
     const baseInnerUrl = `https://app.marq.com/documents/iframe?newWindow=false&returnUrl=${encodeURIComponent(returnUrl)}`;
 
     iframeSrc =
@@ -1279,9 +1258,6 @@ setCreatedProjects((prevProjects = {}) => ({
         // Parse the response body as JSON
         const marqlookupResponseBody = await marqlookup.json();
         const usertableresult = marqlookupResponseBody.usertableresult;
-
-        console.log("usertableresult:", usertableresult);
-
         if (
           usertableresult
         ) {
@@ -1317,7 +1293,6 @@ setCreatedProjects((prevProjects = {}) => ({
 
 
   useEffect(() => {
-    // console.log("Filtered Templates Updated:", filteredTemplates);
   }, [filteredTemplates]);
 
   const handleSearch = useCallback(
@@ -1498,7 +1473,11 @@ useEffect(() => {
   };
   
 
-  
+  const handleResyncTemplates = async () => {
+    setIsResyncing(true); // Start loading state
+    await fetchandapplytemplates(); // Call the function
+    setIsResyncing(false); // Stop loading state after function completes
+  };
 
   const handleCopy = async (text) => {
     try {
@@ -1534,9 +1513,12 @@ useEffect(() => {
         <Text>
           Unable to find any templates. Please adjust your filters or add templates to your Marq brand template library.
         </Text>
-        <Button onClick={() => fetchandapplytemplates()}>
-          Resync templates
-        </Button>
+        <LoadingButton 
+  onClick={handleResyncTemplates} 
+  loading={isResyncing} // Add loading prop
+>
+  Resync templates
+</LoadingButton>
       </EmptyState>
     );
   }
@@ -1639,7 +1621,6 @@ useEffect(() => {
         <Button
           variant="secondary"
           onClick={() => {
-            console.log("URL to be copied:", matchingProject.fileurl);
             handleCopy(matchingProject.fileurl);
           }}
         >
@@ -1794,15 +1775,16 @@ useEffect(() => {
   } else {
     if (ShowMarqUserButton) {
       return (
-        <Button
+        <LoadingButton
           href={userauthURL}
           variant="primary"
           size="medium"
           type="button"
           onClick={startPollingForMarqUser}
+          loading={isPolling}
         >
           Connect to Marq
-        </Button>
+        </LoadingButton>
       );
     }
   }
