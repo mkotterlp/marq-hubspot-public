@@ -64,6 +64,7 @@ const Extension = ({ context, actions }) => {
   let propertiesBody = {};
   let collectionid = "";
   let datasetid = "";
+  let resyncingstate = false;
   let schema = [
     { name: "Id", fieldType: "STRING", isPrimary: true, order: 1 },
     {
@@ -411,18 +412,22 @@ const applytemplates = async (fetchedTemplates) => {
 
 
 const fetchandapplytemplates = async () => {
-
+console.log("Fetching templates");
   setIsLoading(true); 
+
   const currentTime = Date.now();
-  const timeDifference = currentTime - lasttemplatesyncdate;
+  const lastSyncDate = new Date(lasttemplatesyncdate);
+  const timeDifference = currentTime - lastSyncDate.getTime();
   const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
+  const isMoreThan24Hours = timeDifference > twentyFourHoursInMs;
   
   if (
-    (timeDifference > twentyFourHoursInMs && marquserinitialized) ||
-    (!templatesfeed && marquserinitialized)
+    (isMoreThan24Hours && marquserinitialized) ||
+    (!templatesfeed && marquserinitialized) ||
+    (resyncingstate) 
   ) {
     try {
-
+      console.log("Getting new templates from Marq API");
       // Fetch templates
       const templateFetchResponse = await hubspot.fetch(
         "https://marqembed.fastgenapp.com/fetch-marq-templates",
@@ -1071,6 +1076,7 @@ const filterTemplates = (
         // Append the Id field to the properties object
         updatedProperties["Id"] = context.crm.objectId?.toString() || "";
         updatedProperties["Marq User Restriction"] = context.user.email;
+        console.log("updatedProperties", updatedProperties);
         try {
  
           const updatedataset = await hubspot.fetch(
@@ -1262,10 +1268,15 @@ setCreatedProjects((prevProjects = {}) => ({
           usertableresult
         ) {
           setIsPolling(false); // Stop polling
+          lasttemplatesyncdate = usertableresult.lasttemplatesyncdate ?? null;
+          templatesfeed = usertableresult.templatesfeed ?? null;
+          marquserinitialized = true;
+          await fetchAssociatedProjectsAndDetails();
           await fetchandapplytemplates();
-          setShowTemplates(true);
+          fetchembedoptions();
+          fetchcustomdatafields();
+          setShowTemplates(true);  
           setShowMarqUserButton(false);
-          // fetchPropertiesAndLoadConfig(); // Ensure objectType is defined
         } else {
           setShowTemplates(false);
         }
@@ -1474,10 +1485,14 @@ useEffect(() => {
   
 
   const handleResyncTemplates = async () => {
+    console.log('Resync button clicked'); // Debugging to ensure the function runs
     setIsResyncing(true); // Start loading state
-    await fetchandapplytemplates(); // Call the function
+    resyncingstate = true;
+    await fetchandapplytemplates(); // Call the function to fetch templates
     setIsResyncing(false); // Stop loading state after function completes
+    resyncingstate = false;
   };
+  
 
   const handleCopy = async (text) => {
     try {
@@ -1505,23 +1520,42 @@ useEffect(() => {
 
   if (!filteredTemplates.length && !isLoading && showTemplates) {
     return (
-      <EmptyState 
-        title="No templates found" 
-        layout="vertical" 
-        reverseOrder={true}
-      >
-        <Text>
-          Unable to find any templates. Please adjust your filters or add templates to your Marq brand template library.
-        </Text>
-        <LoadingButton 
-  onClick={handleResyncTemplates} 
-  loading={isResyncing} // Add loading prop
->
-  Resync templates
-</LoadingButton>
-      </EmptyState>
+      <>
+        <Form>
+          <Flex direction="row" justify="center" gap="small">
+            <Box flex={1}>
+              <Input
+                type="text"
+                placeholder="⌕ Search all templates"
+                value={searchTerm}
+                onInput={handleSearch}
+                style={{ width: "100%" }}
+              />
+            </Box>
+          </Flex>
+        </Form>
+  
+        <EmptyState 
+          title="No templates found" 
+          layout="vertical" 
+          reverseOrder={true}
+        >
+          <Text>
+            Unable to find any templates. Please adjust your filters or add templates to your Marq brand template library.
+          </Text>
+          <LoadingButton 
+            onClick={handleResyncTemplates} 
+            loading={isResyncing} 
+            variant="primary"
+            type="button"
+          >
+            Resync templates
+          </LoadingButton>
+        </EmptyState>
+      </>
     );
   }
+  
 
   if (showTemplates) {
     return (
